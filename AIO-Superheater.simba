@@ -1,0 +1,679 @@
+program _SuperHeater;
+{$DEFINE SMART}
+{$i srl/srl.simba}
+{$i srl/srl/skill/magic.simba}
+
+const
+  STATS_ID       = '';
+  STATS_PASSWORD = '';
+
+const
+  BAR_BRONZE  = 0;
+  BAR_IRON    = 1;
+  BAR_SILVER  = 2;
+  BAR_STEEL   = 3;
+  BAR_GOLD    = 4;
+  BAR_MITHRIL = 5;
+  BAR_ADAMANT = 6;
+  BAR_RUNE    = 7;
+
+type
+  TBar = record
+    name, statsName: string;
+    amtPrimary: integer;     // number of primary ore for 1 load
+    hasSecondary: boolean;
+    expSmithing: extended;
+    oreUptext: TStringArray;
+    webString: string;
+    _profit: integer;
+  end;
+
+// _* means changing won't break script, but still shouldn't change
+const
+  _P_BAR      = 0;
+  _P_BREAK    = 1;
+  _P_TIME     = 2;
+  _P_CUSTOM_X = 3;
+  _P_CUSTOM_Y = 4;
+
+  _P_BANK  = 0;
+
+  _P_COAL_BAG = 0;
+
+  // not set by user
+  _P_NATURES_START = 10;
+  _P_CASTS         = 11;
+  _P_FALSE         = 12;
+
+  // bank slots for ores
+  _PRIMARY_COL   = 8;
+  _PRIMARY_ROW   = 0;
+  _SECONDARY_COL = 9;
+  _SECONDARY_ROW = 0;
+
+// __* means changing will break script
+const
+  __SLOT_NATURE   = 28; // inventory slot holding the nature runes
+
+  __EXP_SUPERHEAT = 53;
+
+var
+  _bars: array of TBar;
+
+procedure declarePlayers();
+begin
+  howManyPlayers := 1;
+  numberOfPlayers(howManyPlayers);
+  currentPlayer := 0;
+
+  with players[0] do
+  begin
+    name := '';
+    pass := '';
+    pin  := '';
+    active := true;
+    member := false;
+
+    strings[_P_BANK]      := 'veb';       // regular bank, set to '' if using chest
+    integers[_P_BANK]     := SRL_BANK_GG; // for bank chest
+    booleans[_P_COAL_BAG] := true;
+    integers[_P_BAR]      := BAR_MITHRIL;
+    integers[_P_BREAK]    := 0; // how many minutes to break for (leave 0 to not break)
+    integers[_P_TIME]     := 0; // time before breaking (leave 0 to not break)
+    integers[_P_CUSTOM_X] := 0; // X-coord of spell (0 calls SRL's cast, recommended)
+    integers[_P_CUSTOM_Y] := 0; // Y-coord of spell (0 calls SRL's cast, recommended)
+  end;
+end;
+
+// used to disable randoms solvers
+function disableRandoms(var cont: boolean): boolean;
+begin
+  result := false;
+  cont := false;
+end;
+
+function randomMinutes(min: integer): integer;
+begin
+  result := randomRange(-min * 60000, min * 60000);
+end;
+
+function getBar(bar: integer): TBar;
+begin
+  case bar of
+    BAR_BRONZE:
+      with result do
+      begin
+        name := 'Bronze Bar';
+        statsName := 'Bronze Bars Melted';
+        amtPrimary   := 13;
+        hasSecondary := true;
+        expSmithing  := 6.2;
+        oreUptext    := ['Tin', 'in', 'Copper', 'opper'];
+        webString    := 'Bronze_bar';
+      end;
+
+    BAR_IRON:
+      with result do
+      begin
+        name := 'Iron Bar';
+        statsName := 'Iron Bars Melted';
+        amtPrimary   := 27;
+        hasSecondary := false;
+        expSmithing  := 12.5;
+        oreUptext    := ['Iron', 'ron', 'Ir'];
+        webString    := 'Iron_bar';
+      end;
+
+    BAR_SILVER:
+      with result do
+      begin
+        name := 'Silver Bar';
+        statsName := 'Silver Bars Melted';
+        amtPrimary   := 27;
+        hasSecondary := false;
+        expSmithing  := 13.7;
+        oreUptext    := ['Silver', 'ilver', 'ver'];
+        webString    := 'Silver_bar';
+      end;
+
+    BAR_STEEL:
+      with result do
+      begin
+        name := 'Steel Bar';
+        statsName := 'Steel Bars Melted';
+        amtPrimary   := (9 + (integer(players[currentPlayer].booleans[_P_COAL_BAG])) * 8);
+        hasSecondary := true;
+        expSmithing  := 17.5;
+        oreUptext    := ['Iron', 'ron', 'Ir', 'ro', 'n Or'];
+        webString    := 'Steel_bar';
+      end;
+
+    BAR_GOLD:
+      with result do
+      begin
+        name := 'Gold Bar';
+        statsName := 'Gold Bars Melted';
+        amtPrimary   := 27;
+        hasSecondary := false;
+        expSmithing  := 22.5;
+        oreUptext    := ['Gold', 'old'];
+        webString    := 'Gold_bar';
+      end;
+
+    BAR_MITHRIL:
+      with result do
+      begin
+        name := 'Mithril Bar';
+        statsName := 'Mithril Bars Melted';
+        amtPrimary   := (5 + (integer(players[currentPlayer].booleans[_P_COAL_BAG])) * 5);;
+        hasSecondary := true;
+        expSmithing  := 30;
+        oreUptext    := ['Mithril', 'ithril', 'ril'];
+        webString    := 'Mithril_bar';
+      end;
+
+    BAR_ADAMANT:
+      with result do
+      begin
+        name := 'Adamant Bar';
+        statsName := 'Adamant Bars Melted';
+        amtPrimary   := (3 + (integer(players[currentPlayer].booleans[_P_COAL_BAG])) * 4);;
+        hasSecondary := true;
+        expSmithing  := 37.5;
+        oreUptext    := ['Adamant', 'damant', 'ant'];
+        webString    := 'Adamant_bar';
+      end;
+
+    BAR_RUNE:
+      with result do
+      begin
+        name := 'Rune Bar';
+        statsName := 'Runite Bars Melted';
+        amtPrimary   := (3 + (integer(players[currentPlayer].booleans[_P_COAL_BAG])) * 2);;
+        hasSecondary := true;
+        expSmithing  := 50.0;
+        oreUptext    := ['Runite', 'unite'];
+        webString    := 'Rune_bar';
+      end;
+
+    else
+      writeln('getBar: Invalid bar selected');
+  end;
+end;
+
+function getNatures(): integer;
+var
+  coords_nature: TPoint;
+begin
+  if (not gameTab(TAB_INV) and (not bankScreen)) then
+    exit;
+
+  coords_nature := itemCoords(__SLOT_NATURE);
+  result := getAmount(coords_nature.x, coords_nature.y);
+
+  if (result <= 0) then
+    players[currentPlayer].strings[_P_FALSE] := 'No Runes';
+
+  writeln('Natures found: '+toStr(result));
+end;
+
+function getSmithingExp(bar: TBar; casts: integer): integer;
+begin
+  result := round(bar.expSmithing * casts);
+end;
+
+function getMagicExp(casts: integer): integer;
+begin
+  result := round(__EXP_SUPERHEAT * casts);
+end;
+
+function getProfit(bar: TBar): integer; // credit to euphemism
+var
+  p, barString, barProfit: string;
+begin
+  p := getPage('http://runescape.wikia.com/wiki/Calculator:Magic/Superheat');
+
+  barString := between('</td><td> <span class="GEIcon"><a href="/wiki/' + bar.webString, '</tr>', p);
+  barProfit := between('>', '<', between('e="c', '/s', barString));
+
+  result := strToIntDef(barProfit, -1);
+  writeln(bar.name+' Profit: '+toStr(result));
+end;
+
+function perHour(amt, time: integer): integer;
+begin
+  if (amt = -1) then
+  begin
+    result := -1;
+    exit;
+  end;
+
+  try
+    result := round((amt * 60) / (time / 60000));
+  except
+  end;
+end;
+
+const
+  __PADR = 44;
+  __TOK = ',';
+procedure progressReport();
+var
+  i, _expM, _expS, _worked, _profit: integer;
+  _bar: TBar;
+begin
+  setScriptProp(sp_WriteTimeStamp, [false]);
+  srlRandomsReport();
+  writeln('');
+
+  writeln('[-------------------------------------------]'); // 45
+  writeln('[              AIO SuperHeater              ]');
+  writeln('[                 by Coh3n                  ]');
+  writeln('[-------------------------------------------]');
+  writeln('[                                           ]');
+  writeln(padR('[           '+msToTime(getTimeRunning, TIME_ABBREV), __PADR)+']');
+  writeln('[                                           ]');
+
+  for i := 0 to high(players) do
+    with players[i] do
+    begin
+      _bar  := _bars[currentPlayer];
+      _expM := getMagicExp(integers[_P_CASTS]);
+      _expS := getSmithingExp(_bar, integers[_P_CASTS]);
+      _worked := playerWorked(i);
+
+      if (_bar._profit > 0) then
+        _profit := (_bar._profit * integers[_P_CASTS])
+      else
+        _profit := -1;
+
+      if (active) then
+        writeln(padR('[    Player ~ '+toStr(i)+' (True)', __PADR)+']')
+      else
+        writeln(padR('[    Player ~ '+toStr(i)+' ('+strings[_P_FALSE]+')', __PADR)+']');
+
+      writeln(padR('[      Worked   ~ '+msToTime(_worked, TIME_BARE), __PADR)+']');
+      writeln(padR('[      Bar      ~ '+_bar.name, __PADR)+']');
+      writeln(padR('[      Casts    ~ '+groupDigits(integers[_P_CASTS], __TOK)+' ('+groupDigits(perHour(integers[_P_CASTS], _worked), __TOK)+' P/H)', __PADR)+']');
+      writeln(padR('[      Magic XP ~ '+groupDigits(_expM, __TOK)+' ('+groupDigits(perHour(_expM, _worked), __TOK)+' P/H)', __PADR)+']');
+      writeln(padR('[      Smith XP ~ '+groupDigits(_expS, __TOK)+' ('+groupDigits(perHour(_expS, _worked), __TOK)+' P/H)', __PADR)+']');
+      writeln(padR('[      Total XP ~ '+groupDigits(_expM+_expS, __TOK)+' ('+groupDigits(perHour((_expM+_expS), _worked), __TOK)+' P/H)', __PADR)+']');
+      writeln(padR('[      Profit   ~ '+groupDigits(_profit, __TOK)+' ('+groupDigits(perHour(_profit, _worked), __TOK)+' P/H)', __PADR)+']');
+
+      writeln('[                                           ]');
+    end;
+
+  writeln('[-------------------------------------------]');
+  writeln('[-------------------------------------------]');
+
+  setScriptProp(sp_WriteTimeStamp, [false]);
+end;
+
+function onInvTab(): boolean;
+begin
+  result := (getCurrentTab = TAB_INV);
+end;
+
+function onMagicTab(): boolean;
+begin
+  result := (getCurrentTab = TAB_MAGIC);
+end;
+
+function invCountChanged(oldCount: integer): boolean;
+begin
+  result := (invCount() <> oldCount);
+end;
+
+function setCasts(): boolean;
+var
+  nats, prevCasts: integer;
+begin
+  result := true;
+
+  nats := getNatures();
+  if (nats <= 0) then // could be in a random (keeps the proper number of casts)
+    exit;
+
+  with players[currentPlayer] do
+  begin
+    prevCasts := integers[_P_CASTS];
+    integers[_P_CASTS] := (integers[_P_NATURES_START] - nats);
+    stats_IncVariable(_bars[currentPlayer].statsName, (integers[_P_CASTS] - prevCasts));
+
+    if (integers[_P_CASTS] >= integers[_P_NATURES_START]) then
+    begin
+      result := false;
+      strings[_P_FALSE] := 'Finished';
+    end;
+  end;
+end;
+
+function depositJunk(bar: TBar): boolean;
+begin
+  if (not loggedIn) then
+    exit;
+
+  result := (invCount = 1);
+
+  if (not result) then
+  begin
+    deposit(1, bar.amtPrimary + integer(bar.amtPrimary <> 27), true);
+    result := (invCount = 1);
+  end;
+end;
+
+function withdrawOres(bar: TBar): boolean;
+var
+  nats: integer;
+  v: TVariantArray;
+begin
+  if (not loggedIn) then
+    exit;
+
+  nats := getNatures();
+  if (nats <= 0) then
+    exit;
+
+  if (nats >= bar.amtPrimary) then
+    // use Withdraw-All of needed
+    withdrawEx(_PRIMARY_COL, _PRIMARY_ROW, bar.amtPrimary * integer(bar.amtPrimary <> 27), [])
+  else begin
+    // withdraw the amount of runes we have left
+    _bars[currentPlayer].amtPrimary := nats;
+    withdrawEx(_PRIMARY_COL, _PRIMARY_ROW, nats, []);
+  end;
+
+  if (bar.hasSecondary) then
+    withdrawEx(_SECONDARY_COL, _SECONDARY_ROW, 0, []);
+
+  v := [_bars[currentPlayer].amtPrimary + 1];
+  result := waitFuncEx('existsItem', v, 50, 3000);
+end;
+
+function fillCoalBag(): boolean;
+var
+  i, x, y: integer;
+  v: TVariantArray;
+begin
+  if ((not loggedIn) or (not players[currentPlayer].booleans[_P_COAL_BAG])) then
+    exit;
+
+  withdrawEx(_SECONDARY_COL, _SECONDARY_ROW, 0, []);
+  mouse(663, 448, 3, 3, mouse_Right);
+
+  if (waitOptionMultiEx(['bag', 'Coal', 'osit', 'oal'], 'all', nothing, 300)) then
+  begin
+    getMousePos(x, y);
+    mouse(x, y, 0, 0, mouse_Left);
+
+    i := invCount();
+    v := [i];
+    result := waitFuncEx('invCountChanged', v, 50, 3000);
+  end;
+end;
+
+function bank(bar: TBar): boolean;
+var
+  openedBank: boolean;
+begin
+  if (not loggedIn) then
+    exit;
+
+  findNormalRandoms();
+
+  with players[currentPlayer] do
+    if (strings[_P_BANK] = '') then
+      openedBank := openBank(integers[_P_BANK], false, false)
+    else
+      openedBank := openBank(strings[_P_BANK], false, false);
+
+  if (openedBank) then
+  begin
+    depositJunk(bar);
+
+    if (not fillCoalBag()) then
+      depositJunk(bar);
+
+    if (withdrawOres(bar)) then
+    begin
+      if (not setCasts()) then // if player is finished casting
+        exit;
+
+      result := true;
+      clearDebug();
+      progressReport();
+      closeBank();
+    end;
+
+  end else
+    writeln('bank: Failed to open '+players[currentPlayer].strings[_P_BANK]);
+end;
+
+function myCast(): boolean;
+var
+  x, y: integer;
+begin
+  with players[currentPlayer] do
+    if (integers[_P_CUSTOM_X] <= 0) or (integers[_P_CUSTOM_Y] <= 0) then
+      result := cast('superheat item', false)
+    else
+      if (gameTab(TAB_MAGIC)) then // use user's custom coordinates
+      begin
+        if (not waitUptext('ast Super', 300)) then
+          mmouse(integers[_P_CUSTOM_X], integers[_P_CUSTOM_Y], 5, 5);
+
+        if (waitUptext('ast Super', 300)) then
+        begin
+          getMousePos(x, y);
+          mouse(x, y, 0, 0, mouse_left);
+          result := true;
+        end;
+      end;
+end;
+
+function castSlot(slot: integer; bar: TBar): boolean;
+var
+  x, y, mouseSlot: integer;
+begin
+  if (not loggedIn) then
+    exit;
+
+  if (not myCast()) then
+    exit;
+
+  if (waitFunc(@onInvTab, 50, 2000)) then
+  begin
+    getMousePos(x, y);
+    mouseSlot := coordsToItem(x, y);
+
+    if (slot > mouseSlot) or (not waitUptextMulti(bar.oreUptext, 300)) then
+      invMouse(bar.amtPrimary, mouse_Move);
+
+    if (waitUptextMulti(bar.oreUptext, 300)) then
+    begin
+      getMousePos(x, y);
+      mouse(x, y, 0, 0, mouse_Left);
+    end else
+      writeln('castSlot: Uptext fail ('+toStr(bar.oreUptext)+')');
+  end;
+
+  findNonInventoryRandoms();
+  result := waitFunc(@onMagicTab, 50, 2000);
+  levelUp();
+end;
+
+function castLoad(bar: TBar): boolean;
+var
+  i, c, t: integer;
+begin
+  for i := 1 to (bar.amtPrimary) do
+    repeat
+      inc(t);
+
+      if (castSlot(i, bar)) then // last slot ore appears
+      begin
+        t := 0;
+        inc(c);
+        break;
+      end;
+
+      if (getNatures() <= 0) then // if run out of runes
+        exit;
+    until(t >= 3);
+
+  result := (c = (bar.amtPrimary));
+end;
+
+procedure takeBreak();
+var
+  t, breakTime: integer;
+begin
+  if (howManyPlayers > 1) then
+    nextPlayer(true)
+  else begin
+    breakTime := (players[currentPlayer].integers[_P_BREAK] * 60000) + randomMinutes(5);
+
+    if (breakTime >= (30 * 60000)) then
+      logout()
+    else
+      exitToLobby();
+
+    t := (getSystemTime + (breakTime));
+    writeln('Breaking for '+msToTime(t - getSystemTime, TIME_BARE));
+
+    while (getSystemTime < t) do
+    begin
+      writeln('Time left: '+msToTime(t - getSystemTime, TIME_BARE));
+      wait(randomRange(10000, 20000));
+    end;
+
+    loginPlayer();
+  end;
+
+  findNormalRandoms();
+end;
+
+function setupPlayer(): boolean;
+begin
+  if (loginPlayer()) then
+  begin
+    clickNorth(SRL_ANGLE_HIGH);
+    result := true;
+    findNormalRandoms();
+    players[currentPlayer].integers[_P_NATURES_START] := getNatures();
+  end;
+end;
+
+procedure setupScript();
+var
+  i: integer;
+begin
+  // set SRL variables
+  declarePlayers();
+  for i := 0 to high(players) do
+    if (not players[i].active) then
+      players[i].Strings[_P_FALSE] := 'User set false';
+
+  setLength(_bars, length(players));
+  srl_magic_CheckSpellsOnce := true;
+  srl_OnFindRandomCall := @disableRandoms;
+end;
+
+procedure next(why: string);
+begin
+  if (findNormalRandoms) then
+    exit;
+
+  players[currentPlayer].active := false;
+
+  if (players[currentPlayer].strings[_P_FALSE] = '') then
+    players[currentPlayer].strings[_P_FALSE] := why;
+
+  if (players[currentPlayer].rand <> '') then
+    players[currentPlayer].strings[_P_FALSE] := players[currentPlayer].rand;
+
+  if ((howManyPlayers <= 1) or (playersActive <= 1)) then
+  begin
+    setCasts();
+    logout();
+    writeln('Player '+toStr(currentPlayer)+': '+why);
+    terminateScript();
+  end else
+    nextPlayer(false);
+end;
+
+procedure mainloop();
+var
+  tmp: integer;
+begin
+  repeat
+    if (not setupPlayer()) then
+    begin
+      next('Login fail');
+      continue;
+    end;
+
+    _bars[currentPlayer] := getBar(players[currentPlayer].integers[_P_BAR]);
+    _bars[currentPlayer]._profit := getProfit(_bars[currentPlayer]);
+    markTime(tmp);
+
+    repeat
+      if (not bank(_bars[currentPlayer])) then
+      begin
+        if (findNormalRandoms) then
+          continue;
+
+        next('Failed to bank');
+      end;
+
+      with players[currentPlayer] do
+        if (integers[_P_TIME] > 0) then
+          if (timeFromMark(tmp) >= (integers[_P_TIME] * 60000 + randomMinutes(5))) then
+          begin
+            takeBreak();
+            markTime(tmp);
+          end;
+
+      if (not castLoad(_bars[currentPlayer])) then
+        if (getNatures() <= 1) then
+        begin
+          if (findNormalRandoms) then
+            continue;
+
+          next('No runes')
+        end else
+          continue;
+
+      stats_Commit();
+    until(not players[currentPlayer].active);
+
+    if (not players[currentPlayer].active) then
+      next('Set false in SRL');
+
+  until(allPlayersInactive);
+end;
+
+procedure terminate();
+begin
+  progressReport();
+end;
+
+begin
+  {$IFDEF SMART}
+  SMART_Server := 1;
+  SMART_Members := False;
+  SMART_Signed := True;
+  SMART_SuperDetail := False;
+  {$ENDIF}
+
+  clearDebug();
+  activateClient();
+  setScriptProp(sp_WriteTimeStamp, [true]);
+  addOnTerminate('terminate');
+  setSupressExceptions(false);
+  setupSRL();
+  setupSRLStats(534, STATS_ID, STATS_PASSWORD);
+
+  setupScript();
+  mainloop();
+end.
