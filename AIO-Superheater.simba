@@ -1,6 +1,34 @@
-program _SuperHeater;
+{==============================================================================\
+|                            All-in-one Superheater                            |
+|                                  By: Coh3n                                   |
+|==============================================================================|
+|                                                                              |
+|      Written By: Coh3n                                                       |
+|      Description: Superheats any bar                                         |
+|      Contact Info: Private message via Villavu.com                           |
+|                                                                              |
+|      Many more scripts of various types can be found at VillaVu.com!         |
+ \_____________________________________________________________________________}
+
+{==============================================================================\
+|                              Setup Instructions                              |
+|==============================================================================]
+|                                                                              |
+|       1. Have Nature runes in backpack slot 28                               |
+|       2. Have Coal bag in backpack slot 27 (Coal bag optional)               |
+|       3. Be in a bank where the booth is in front of you when compass is     |
+|          facing north (I recommend Lumbridge top floor)                      |
+|       4. Setup script from lines 81-146                                      |
+|       5. Save your changes and hit Run (F9)                                  |
+|       6. Post any progress reports and/or bugs!                              |
+ \_____________________________________________________________________________}
+
+program AIOSuperheater;
 {$DEFINE SMART}
 {$i srl-6/srl.simba}
+
+const
+  SCRIPT_VERSION = '1.0';
 
 const
   BAR_BRONZE  = 0;
@@ -28,6 +56,8 @@ const
   _P_BAR      = 0;
   _P_BREAK    = 1;
   _P_TIME     = 2;
+  _P_CUSTOM_X = 3;
+  _P_CUSTOM_Y = 4;
 
   _P_BANK  = 0;
 
@@ -46,41 +76,101 @@ const
 const
   __SLOT_NATURE   = 28; // inventory slot holding the nature runes
   __EXP_SUPERHEAT = 53;
-  __COORD_SPELL_X = 645;
-  __COORD_SPELL_Y = 391;
 
 var
   _bars: array of TBar;
 
+{==============================================================================\
+|                               Script Setup                                   |
+|==============================================================================|
+|                                                                              |
+|    * To setup the script and your players.                                   |
+ \_____________________________________________________________________________}
+
 const
-  STATS_ID = 'Coh3n';
-  STATS_PASSWORD = '304002';
-  SRL_LOG = false;   // Saves SRL debug to a log file
-  SRL_DEBUG = true; // Debugs SRL procedures in the debug box
-  IP_SCREEN = false; // Takes a screenshot of your last IP in case of hacks
+  STATS_ID = '';       // the stats ID you use to login @ stats.villavu.com
+  STATS_PASSWORD = ''; // the stats password
+  SRL_LOG = true;      // saves SRL debug to a log file
+  SRL_DEBUG = true;    // debugs SRL procedures in the debug box
+  IP_SCREEN = true;    // takes a screenshot of your last IP in case of hacks
 
 procedure declarePlayers();
 begin
-  players.setup(['Kryptov'], 'Skillers');
+  players.setup(['PlayerNames/Nicknames/LoginNames'], 'PlayerFileName');
   currentPlayer := 0;
 
   with players[0] do
   begin
+    booleans[_P_COAL_BAG] := true;        // true = using Coal bag
+    integers[_P_BAR]      := BAR_MITHRIL; // bar to make
+    integers[_P_BREAK]    := 0;           // how many minutes to break for (leave 0 to not break)
+    integers[_P_TIME]     := 0;           // time before breaking (leave 0 to not break)
+    integers[_P_CUSTOM_X] := 645;         // X coord of where to click the superheat spell
+    integers[_P_CUSTOM_Y] := 391;         // Y coord of where to click the superheat spell
+  end;
+{
+  with players[1] do
+  begin
     booleans[_P_COAL_BAG] := true;
     integers[_P_BAR]      := BAR_MITHRIL;
-    integers[_P_BREAK]    := 0; // how many minutes to break for (leave 0 to not break)
-    integers[_P_TIME]     := 0; // time before breaking (leave 0 to not break)
+    integers[_P_BREAK]    := 0;
+    integers[_P_TIME]     := 0;
   end;
+
+  with players[2] do
+  begin
+    booleans[_P_COAL_BAG] := true;
+    integers[_P_BAR]      := BAR_MITHRIL;
+    integers[_P_BREAK]    := 0;
+    integers[_P_TIME]     := 0;
+  end;
+
+  with players[3] do
+  begin
+    booleans[_P_COAL_BAG] := true;
+    integers[_P_BAR]      := BAR_MITHRIL;
+    integers[_P_BREAK]    := 0;
+    integers[_P_TIME]     := 0;
+  end;
+
+  with players[4] do
+  begin
+    booleans[_P_COAL_BAG] := true;
+    integers[_P_BAR]      := BAR_MITHRIL;
+    integers[_P_BREAK]    := 0;
+    integers[_P_TIME]     := 0;
+  end;
+}
 end;
 
-function TRSBankScreen.getPackCount(): integer;
-var
-  b: TBoxArray := bankscreen.getPackSlotBoxes();
-  i: integer;
+{==============================================================================\
+|                             End Script Setup                                 |
+|==============================================================================}
+
+procedure signature;
 begin
-  for i := 0 to high(b) do
-    if (isItemIn(b[i])) then
-      inc(result);
+  ClearDebug;
+  Writeln('                                            ___          ');
+  Wait(100);
+  Writeln('                       ____                /\__\         ');
+  Wait(100);
+  Writeln('                      /\___\     ____      \/ _/         ');
+  Wait(100);
+  Writeln('       _____          \/_  /    /\___\      \/ _____     ');
+  Wait(100);
+  Writeln('      /\____\  _______/ / /___ _\/___ \_____  /\____\    ');
+  Wait(100);;
+  Writeln('     / /  ___\/\______\/ /____\\____/ /_____\/ / ____\   ');
+  Wait(100);
+  Writeln('    / /  /__ / / ___  / ____  //___  / ____  \/ /___\    ');
+  Wait(100);
+  Writeln('   / /  /___\ / /__/ / / / / /____/ / /  / / /____  /    ');
+  Wait(100);
+  Writeln('   \/_______//______/_/ /_/_/______/_/__/_/_/____/ /     ');
+  Wait(100);
+  Writeln('                             \/___________________/      ');
+  Wait(100);
+  Writeln(PadR('               All-in-one Superheater ' + SCRIPT_VERSION + '!', 57));
 end;
 
 procedure findNormalRandoms();
@@ -252,7 +342,8 @@ var
 begin
   p := getPage('http://runescape.wikia.com/wiki/Calculator:Magic/Superheat');
 
-  barString := between('</td><td> <span class="GEIcon"><a href="/wiki/' + bar.webString, '</tr>', p);
+  barString := between('<a href="/wiki/' + bar.webString + '"', '</tr>', p);
+  writeln(p);
   barProfit := between('>', '<', between('e="c', '/s', barString));
 
   result := strToIntDef(barProfit, -1);
@@ -319,6 +410,8 @@ begin
       writeln(padR('[      Profit   ~ '+groupDigits(_profit, __TOK)+' ('+groupDigits(perHour(_profit, _worked), __TOK)+' P/H)', __PADR)+']');
 
       writeln('[                                           ]');
+
+      disguise('Spells Cast: '+groupDigits(integers[_P_CASTS], __TOK));
     end;
 
   writeln('[-------------------------------------------]');
@@ -498,11 +591,12 @@ end;
 
 function myCast(): boolean;
 begin
-  if (gameTabs.openTab(TAB_MAGIC)) then
-  begin
-    mouse(point(__COORD_SPELL_X + randomRange(-3, 3), __COORD_SPELL_Y), MOUSE_LEFT);
-    result := true;
-  end;
+  with players[currentPlayer] do
+    if (gameTabs.openTab(TAB_MAGIC)) then
+    begin
+      mouse(point(integers[_P_CUSTOM_X] + randomRange(-3, 3), integers[_P_CUSTOM_Y]), MOUSE_LEFT);
+      result := true;
+    end;
 end;
 
 function castSlot(slot: integer; bar: TBar): boolean;
@@ -652,7 +746,8 @@ begin
 
     repeat
       if (not bank(_bars[currentPlayer])) then
-        next('Failed to bank');
+        if (not bank(_bars[currentPlayer])) then // retry
+          next('Failed to bank');
 
       with players[currentPlayer] do
         if (integers[_P_TIME] > 0) then
@@ -685,6 +780,9 @@ end;
 
 begin
   clearDebug();
+  signature();
+  writeln('Loading, please wait...');
+  disguise('Spells Cast: 0');
   {$IFNDEF SMART}
   activateClient();
   {$ENDIF}
