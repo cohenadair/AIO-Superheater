@@ -343,7 +343,6 @@ begin
   p := getPage('http://runescape.wikia.com/wiki/Calculator:Magic/Superheat');
 
   barString := between('<a href="/wiki/' + bar.webString + '"', '</tr>', p);
-  writeln(p);
   barProfit := between('>', '<', between('e="c', '/s', barString));
 
   result := strToIntDef(barProfit, -1);
