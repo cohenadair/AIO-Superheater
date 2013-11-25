@@ -3,10 +3,6 @@ program _SuperHeater;
 {$i srl-6/srl.simba}
 
 const
-  STATS_ID       = '';
-  STATS_PASSWORD = '';
-
-const
   BAR_BRONZE  = 0;
   BAR_IRON    = 1;
   BAR_SILVER  = 2;
@@ -32,8 +28,6 @@ const
   _P_BAR      = 0;
   _P_BREAK    = 1;
   _P_TIME     = 2;
-  _P_CUSTOM_X = 3;
-  _P_CUSTOM_Y = 4;
 
   _P_BANK  = 0;
 
@@ -45,25 +39,29 @@ const
   _P_FALSE         = 12;
 
   // bank slots for ores
-  _PRIMARY_SLOT   = 8;
-  _SECONDARY_SLOT = 9;
+  _PRIMARY_SLOT   = 9;
+  _SECONDARY_SLOT = 10;
 
 // __* means changing will break script
 const
   __SLOT_NATURE   = 28; // inventory slot holding the nature runes
   __EXP_SUPERHEAT = 53;
+  __COORD_SPELL_X = 645;
+  __COORD_SPELL_Y = 391;
 
 var
   _bars: array of TBar;
 
 const
-  SRL_LOG = true;   // Saves SRL debug to a log file
+  STATS_ID = 'Coh3n';
+  STATS_PASSWORD = '304002';
+  SRL_LOG = false;   // Saves SRL debug to a log file
   SRL_DEBUG = true; // Debugs SRL procedures in the debug box
-  IP_SCREEN = true; // Takes a screenshot of your last IP in case of hacks
+  IP_SCREEN = false; // Takes a screenshot of your last IP in case of hacks
 
 procedure declarePlayers();
 begin
-  players.setup([''], '');
+  players.setup(['Kryptov'], 'Skillers');
   currentPlayer := 0;
 
   with players[0] do
@@ -72,9 +70,17 @@ begin
     integers[_P_BAR]      := BAR_MITHRIL;
     integers[_P_BREAK]    := 0; // how many minutes to break for (leave 0 to not break)
     integers[_P_TIME]     := 0; // time before breaking (leave 0 to not break)
-    integers[_P_CUSTOM_X] := 0; // X-coord of spell (0 calls SRL's cast, recommended)
-    integers[_P_CUSTOM_Y] := 0; // Y-coord of spell (0 calls SRL's cast, recommended)
   end;
+end;
+
+function TRSBankScreen.getPackCount(): integer;
+var
+  b: TBoxArray := bankscreen.getPackSlotBoxes();
+  i: integer;
+begin
+  for i := 0 to high(b) do
+    if (isItemIn(b[i])) then
+      inc(result);
 end;
 
 procedure findNormalRandoms();
@@ -204,9 +210,22 @@ begin
   end;
 end;
 
-function getNatures(): integer;
+function getNaturesBank(): integer;
 begin
-  if (not tabBackpack.open() and (not bankScreen.isOpen())) then
+  if (not bankScreen.isOpen()) then
+    exit;
+
+  result := getItemAmount(bankscreen.getPackSlotBox(__SLOT_NATURE));
+
+  if (result <= 0) then
+    players[currentPlayer].strings[_P_FALSE] := 'No Runes';
+
+  writeln('Natures found: '+toStr(result));
+end;
+
+function getNaturesBackPack(): integer;
+begin
+  if (not tabBackpack.open()) then
     exit;
 
   result := getItemAmount(tabBackpack.getSlotBox(__SLOT_NATURE));
@@ -330,13 +349,13 @@ begin
   end;
 end;
 
-function waitInvCountChanged(oldCount: integer; time: integer): boolean;
+function waitPackCountChanged(oldCount: integer; time: integer): boolean;
 var
   t: integer := getSystemTime() + time;
 begin
   while ((getSystemTime() < t) and (not result)) do
   begin
-    result := (tabBackpack.count() <> oldCount);
+    result := (bankscreen.getPackCount() <> oldCount);
     wait(50);
   end;
 end;
@@ -347,8 +366,8 @@ var
 begin
   result := true;
 
-  nats := getNatures();
-  if (nats <= 0) then // could be in a random (keeps the proper number of casts)
+  nats := getNaturesBank();
+  if (nats <= 0) then
     exit;
 
   with players[currentPlayer] do
@@ -369,46 +388,34 @@ function depositJunk(bar: TBar): boolean;
 var
   endSlot: integer;
 begin
-  if (not isLoggedIn()) then
-    exit;
-
-  result := (tabBackpack.count() = 1);
-
-  if (not result) then
-  begin
-    endSlot := (bar.amtPrimary + boolToInt(bar.amtPrimary <> 27));
-    bankscreen.deposit([1..endSlot]);
-    result := (tabBackpack.count() = 1);
-  end;
+  endSlot := (bar.amtPrimary + boolToInt(players[currentPlayer].booleans[_P_COAL_BAG]));
+  result := bankscreen.deposit([1..endSlot]);
 end;
 
 function withdrawOres(bar: TBar): boolean;
 var
   nats, t: integer;
 begin
-  if (not isLoggedIn()) then
-    exit;
-
-  nats := getNatures();
+  nats := getNaturesBank();
   if (nats <= 0) then
     exit;
 
   if (nats >= bar.amtPrimary) then
     // use Withdraw-All of needed
-    bankscreen.withdraw(_PRIMARY_SLOT, bar.amtPrimary * boolToInt(bar.amtPrimary <> 27), ['Ore'])
+    bankscreen.withdraw(_PRIMARY_SLOT, bar.amtPrimary * boolToInt(bar.amtPrimary <> 27), ['ore'])
   else begin
     // withdraw the amount of runes we have left
     _bars[currentPlayer].amtPrimary := nats;
-    bankscreen.withdraw(_PRIMARY_SLOT, nats, ['Ore']);
+    bankscreen.withdraw(_PRIMARY_SLOT, nats, ['ore']);
   end;
 
   if (bar.hasSecondary) then
-    bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, ['Ore']);
+    bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, ['Ore', 'Coal']);
 
   t := (getSystemTime() + 3000);
   while (getSystemTime() < t) do
   begin
-    if (tabBackpack.isItemInSlot(_bars[currentPlayer].amtPrimary + 1)) then
+    if (isItemIn(bankscreen.getPackSlotBox(_bars[currentPlayer].amtPrimary + 1))) then
     begin
       result := true;
       break;
@@ -421,26 +428,41 @@ end;
 function fillCoalBag(): boolean;
 var
   p: TPoint;
+  oldCount: integer;
 begin
-  if ((not isLoggedIn()) or (not players[currentPlayer].booleans[_P_COAL_BAG])) then
+  if (not players[currentPlayer].booleans[_P_COAL_BAG]) then
     exit;
 
-  bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, ['Ore']);
-  tabBackpack.mouseSlot(27, MOUSE_RIGHT);
-
-  if (isMouseOverText(['bag', 'Coal', 'osit', 'oal'], 300)) then
+  if (bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, ['ore', 'Coal'])) then
   begin
-    getMousePos(p.x, p.y);
-    mouse(p, MOUSE_LEFT);
-    result := waitInvCountChanged(tabBackpack.count(), 3000);
+    mouseBox(bankscreen.getPackSlotBox(27), MOUSE_MOVE);
+    oldCount := bankscreen.getPackCount();
+    fastClick(MOUSE_RIGHT);
+
+    if (chooseOption.select(['Fill', 'ill'], 300)) then
+    begin
+      getMousePos(p.x, p.y);
+      mouse(point(p.x - 200 - random(100), p.y + randomRange(-20, 20)), MOUSE_MOVE); // gets rid of other spell info.
+      result := waitPackCountChanged(oldCount, 3000);
+    end;
   end;
 end;
 
 function openBank(): boolean;
 var
   x, y: integer;
+  t: integer := (getSystemTime() + 3000);
 begin
-  result := mainscreen.findObject(x, y, [4284262], [8], colorSetting(2, 0.10, 0.28), mainscreen.getCenterPoint(), 50, 200, 1000, ['Bank'], mainscreen.getBounds(), MOUSE_LEFT);
+  if (not isLoggedIn()) then
+    exit;
+
+  mouse(point(mainscreen.playerBox.x1 + 20, mainscreen.playerBox.y1 - 20).rand(10), MOUSE_LEFT);
+
+  while (getSystemTime() < t) and (not result) do
+  begin
+    result := bankscreen.isOpen();
+    wait(50);
+  end;
 end;
 
 function bank(bar: TBar): boolean;
@@ -453,6 +475,7 @@ begin
   // opens Draynor bank via counter
   if (openBank()) then
   begin
+    wait(200 + random(200));
     depositJunk(bar);
 
     if (not fillCoalBag()) then
@@ -474,22 +497,12 @@ begin
 end;
 
 function myCast(): boolean;
-var
-  p: TPoint;
 begin
-  with players[currentPlayer] do
-    if (gameTabs.openTab(TAB_MAGIC)) then
-    begin
-      if (not isMouseOverText(['ast Super'], 300)) then
-        mouse(point(integers[_P_CUSTOM_X], integers[_P_CUSTOM_Y]), 5, 5);
-
-      if (isMouseOverText(['ast Super'], 300)) then
-      begin
-        getMousePos(p.x, p.y);
-        mouse(p, MOUSE_LEFT);
-        result := true;
-      end;
-    end;
+  if (gameTabs.openTab(TAB_MAGIC)) then
+  begin
+    mouse(point(__COORD_SPELL_X + randomRange(-3, 3), __COORD_SPELL_Y), MOUSE_LEFT);
+    result := true;
+  end;
 end;
 
 function castSlot(slot: integer; bar: TBar): boolean;
@@ -508,7 +521,7 @@ begin
     mouseSlot := tabBackpack.pointToSlot(point(x, y));
 
     if (slot > mouseSlot) or (not isMouseOverText(bar.oreUptext, 300)) then
-      tabBackpack.mouseSlot(bar.amtPrimary, mouse_Move);
+      tabBackpack.mouseSlot(bar.amtPrimary, MOUSE_MOVE);
 
     if (isMouseOverText(bar.oreUptext, 300)) then
     begin
@@ -536,7 +549,7 @@ begin
         break;
       end;
 
-      if (getNatures() <= 0) then // if run out of runes
+      if (getNaturesBackPack() <= 0) then // if run out of runes
         exit;
     until(t >= 3);
 
@@ -580,7 +593,7 @@ begin
     mainscreen.setAngle(MS_ANGLE_HIGH);
     result := true;
     findNormalRandoms();
-    players[currentPlayer].integers[_P_NATURES_START] := getNatures();
+    players[currentPlayer].integers[_P_NATURES_START] := getNaturesBackpack();
   end;
 end;
 
@@ -609,12 +622,17 @@ begin
 
   if ((length(players) <= 1) or (players.getActive <= 1)) then
   begin
-    setCasts();
     players[currentPlayer].logout();
     writeln('Player '+toStr(currentPlayer)+': '+why);
     terminateScript();
   end else
     players.next(false);
+end;
+
+procedure onLogin();
+begin
+  exitSquealOfFortune();
+  findNormalRandoms();
 end;
 
 procedure mainloop();
@@ -646,7 +664,7 @@ begin
           end;
 
       if (not castLoad(_bars[currentPlayer])) then
-        if (getNatures() <= 1) then
+        if (getNaturesBackpack() <= 1) then
           next('No runes')
         else
           continue;
@@ -676,6 +694,8 @@ begin
   disableSRLLog := (not SRL_LOG);
   disableIPScreenshots := (not IP_SCREEN);
   disableSRLDebug := (not SRL_DEBUG);
+  SRL_Events[EVENT_LOGIN] := @onLogin;
+
   setupSRL();
   statsSetup(534, STATS_ID, STATS_PASSWORD);
 
