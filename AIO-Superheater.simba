@@ -715,6 +715,9 @@ begin
 
   if ((length(players) <= 1) or (players.getActive <= 1)) then
   begin
+    bankscreen.close();
+    wait(300 + random(300));
+
     players[currentPlayer].logout();
     writeln('Player '+toStr(currentPlayer)+': '+why);
     terminateScript();
