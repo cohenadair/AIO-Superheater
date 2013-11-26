@@ -170,7 +170,7 @@ begin
   Wait(100);
   Writeln('                             \/___________________/      ');
   Wait(100);
-  Writeln(PadR('               All-in-one Superheater ' + SCRIPT_VERSION + '!', 57));
+  Writeln(PadR('                       All-in-one Superheater ' + SCRIPT_VERSION + '!', 57));
 end;
 
 procedure findNormalRandoms();
@@ -452,13 +452,17 @@ begin
   end;
 end;
 
-function setCasts(): boolean;
+function setCasts(inBank: boolean): boolean;
 var
   nats, prevCasts: integer;
 begin
   result := true;
 
-  nats := getNaturesBank();
+  if (inBank) then
+    nats := getNaturesBank()
+  else
+    nats := getNaturesBackpack();
+
   if (nats <= 0) then
     exit;
 
@@ -575,7 +579,7 @@ begin
 
     if (withdrawOres(bar)) then
     begin
-      if (not setCasts()) then // if player is finished casting
+      if (not setCasts(true)) then // if player is finished casting
         exit;
 
       result := true;
@@ -717,6 +721,7 @@ begin
   begin
     bankscreen.close();
     wait(300 + random(300));
+    setCasts(false);
 
     players[currentPlayer].logout();
     writeln('Player '+toStr(currentPlayer)+': '+why);
@@ -795,6 +800,7 @@ begin
   disableIPScreenshots := (not IP_SCREEN);
   disableSRLDebug := (not SRL_DEBUG);
   SRL_Events[EVENT_LOGIN] := @onLogin;
+  smartShowConsole := false;
 
   setupSRL();
   statsSetup(534, STATS_ID, STATS_PASSWORD);
