@@ -28,7 +28,7 @@ program AIOSuperheater;
 {$i srl-6/srl.simba}
 
 const
-  SCRIPT_VERSION = '1.0';
+  SCRIPT_VERSION = '1.1';
 
 const
   BAR_BRONZE  = 0;
@@ -506,7 +506,7 @@ begin
   end;
 
   if (bar.hasSecondary) then
-    bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, ['Ore', 'Coal']);
+    bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, ['ore', 'Coal', 'oal', 'draw-1 Co']);
 
   t := (getSystemTime() + 3000);
   while (getSystemTime() < t) do
@@ -538,7 +538,7 @@ begin
     if (chooseOption.select(['Fill', 'ill'], 300)) then
     begin
       getMousePos(p.x, p.y);
-      mouse(point(p.x - 200 - random(100), p.y + randomRange(-20, 20)), MOUSE_MOVE); // gets rid of other spell info.
+      mouse(point(p.x - 175 - random(50), p.y - 50 - random(20)), MOUSE_MOVE); // gets rid of other spell info. that may appear after clicking "Fill"
       result := waitPackCountChanged(oldCount, 3000);
     end;
   end;
@@ -552,7 +552,16 @@ begin
   if (not isLoggedIn()) then
     exit;
 
-  mouse(point(mainscreen.playerBox.x1 + 20, mainscreen.playerBox.y1 - 20).rand(10), MOUSE_LEFT);
+  mouse(point(mainscreen.playerBox.x1 + 15, mainscreen.playerBox.y1 - 20).rand(10), MOUSE_MOVE);
+
+  // a failsafe in case it tries to cast a spell on the bank booth
+  if (isMouseOverText(['Cast', 'ast', 'heat', 'item'])) then
+  begin
+    fastClick(MOUSE_LEFT);
+    wait(50 + random(50));
+  end;
+
+  fastClick(MOUSE_LEFT);
 
   while (getSystemTime() < t) and (not result) do
   begin
@@ -605,6 +614,7 @@ end;
 function castSlot(slot: integer; bar: TBar): boolean;
 var
   x, y, mouseSlot: integer;
+  successful: boolean = false;
 begin
   if (not isLoggedIn()) then
     exit;
@@ -624,11 +634,13 @@ begin
     begin
       getMousePos(x, y);
       mouse(point(x, y), MOUSE_LEFT);
+      successful := true;
     end else
       writeln('castSlot: Uptext fail ('+toStr(bar.oreUptext)+')');
   end;
 
-  result := waitOnMagicTab(2000);
+  if (successful) then
+    result := waitOnMagicTab(2000);
 end;
 
 function castLoad(bar: TBar): boolean;
@@ -648,7 +660,11 @@ begin
 
       if (getNaturesBackPack() <= 0) then // if run out of runes
         exit;
-    until(t >= 3);
+
+      if (t >= 3) then // something went wrong, exit
+        exit;
+
+    until(not isLoggedIn());
 
   result := (c = (bar.amtPrimary));
 end;
