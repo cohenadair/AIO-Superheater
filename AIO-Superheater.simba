@@ -28,7 +28,7 @@ program AIOSuperheater;
 {$i srl-6/srl.simba}
 
 const
-  SCRIPT_VERSION = '1.1';
+  SCRIPT_VERSION = '1.2';
 
 const
   BAR_BRONZE  = 0;
@@ -375,7 +375,7 @@ begin
   writeln('');
 
   writeln('[-------------------------------------------]'); // 45
-  writeln('[              AIO SuperHeater              ]');
+  writeln('[            AIO SuperHeater '+SCRIPT_VERSION+'            ]');
   writeln('[                 by Coh3n                  ]');
   writeln('[-------------------------------------------]');
   writeln('[                                           ]');
