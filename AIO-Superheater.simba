@@ -464,7 +464,7 @@ begin
     nats := getNaturesBackpack();
 
   if (nats <= 0) then
-    exit;
+    nats := 0;
 
   with players[currentPlayer] do
   begin
@@ -602,11 +602,19 @@ begin
 end;
 
 function myCast(): boolean;
+var
+  p: TPoint;
 begin
   with players[currentPlayer] do
     if (gameTabs.openTab(TAB_MAGIC)) then
     begin
-      mouse(point(integers[_P_CUSTOM_X] + randomRange(-3, 3), integers[_P_CUSTOM_Y]), MOUSE_LEFT);
+      getMousePos(p.x, p.y);
+
+      if (inRange(p.x, integers[_P_CUSTOM_X] - 3, integers[_P_CUSTOM_X] + 3)) then // so the mouse doesn't move only a couple pixels when casting
+        mouse(p, MOUSE_LEFT)
+      else
+        mouse(point(integers[_P_CUSTOM_X] + randomRange(-3, 3), integers[_P_CUSTOM_Y]), MOUSE_LEFT);
+
       result := true;
     end;
 end;
@@ -736,7 +744,7 @@ begin
   if ((length(players) <= 1) or (players.getActive <= 1)) then
   begin
     bankscreen.close();
-    wait(300 + random(300));
+    tabBackpack.waitWhileLocked();
     setCasts(false);
 
     players[currentPlayer].logout();
@@ -769,8 +777,7 @@ begin
 
     repeat
       if (not bank(_bars[currentPlayer])) then
-        if (not bank(_bars[currentPlayer])) then // retry
-          next('Failed to bank');
+        next('Failed to bank');
 
       with players[currentPlayer] do
         if (integers[_P_TIME] > 0) then
