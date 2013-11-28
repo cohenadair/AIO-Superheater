@@ -310,7 +310,7 @@ begin
   if (result <= 0) then
     players[currentPlayer].strings[_P_FALSE] := 'No Runes';
 
-  writeln('Natures found: '+toStr(result));
+  writeln('Natures found bank pack: '+toStr(result));
 end;
 
 function getNaturesBackPack(): integer;
@@ -323,7 +323,7 @@ begin
   if (result <= 0) then
     players[currentPlayer].strings[_P_FALSE] := 'No Runes';
 
-  writeln('Natures found: '+toStr(result));
+  writeln('Natures found backpack: '+toStr(result));
 end;
 
 function getSmithingExp(bar: TBar; casts: integer): integer;
@@ -464,7 +464,7 @@ begin
     nats := getNaturesBackpack();
 
   if (nats <= 0) then
-    nats := 0;
+    exit;
 
   with players[currentPlayer] do
   begin
@@ -498,7 +498,7 @@ begin
 
   if (nats >= bar.amtPrimary) then
     // use Withdraw-All of needed
-    bankscreen.withdraw(_PRIMARY_SLOT, bar.amtPrimary * boolToInt(bar.amtPrimary <> 27), ['ore'])
+    bankscreen.withdraw(_PRIMARY_SLOT, bar.amtPrimary * boolToInt(bar.amtPrimary <> 27), ['ore', 're'])
   else begin
     // withdraw the amount of runes we have left
     _bars[currentPlayer].amtPrimary := nats;
@@ -777,7 +777,8 @@ begin
 
     repeat
       if (not bank(_bars[currentPlayer])) then
-        next('Failed to bank');
+        if (not bank(_bars[currentPlayer])) then // retry
+          next('Failed to bank');
 
       with players[currentPlayer] do
         if (integers[_P_TIME] > 0) then
