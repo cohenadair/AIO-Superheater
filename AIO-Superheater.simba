@@ -498,15 +498,15 @@ begin
 
   if (nats >= bar.amtPrimary) then
     // use Withdraw-All of needed
-    bankscreen.withdraw(_PRIMARY_SLOT, bar.amtPrimary * boolToInt(bar.amtPrimary <> 27), ['ore', 're'])
+    bankscreen.withdraw(_PRIMARY_SLOT, bar.amtPrimary * boolToInt(bar.amtPrimary <> 27), [''])
   else begin
     // withdraw the amount of runes we have left
     _bars[currentPlayer].amtPrimary := nats;
-    bankscreen.withdraw(_PRIMARY_SLOT, nats, ['ore']);
+    bankscreen.withdraw(_PRIMARY_SLOT, nats, ['']);
   end;
 
   if (bar.hasSecondary) then
-    bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, ['ore', 'Coal', 'oal', 'draw-1 Co']);
+    bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, ['']);
 
   t := (getSystemTime() + 3000);
   while (getSystemTime() < t) do
@@ -529,7 +529,7 @@ begin
   if (not players[currentPlayer].booleans[_P_COAL_BAG]) then
     exit;
 
-  if (bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, ['ore', 'Coal'])) then
+  if (bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, [''])) then
   begin
     mouseBox(bankscreen.getPackSlotBox(27), MOUSE_MOVE);
     oldCount := bankscreen.getPackCount();
@@ -610,7 +610,8 @@ begin
     begin
       getMousePos(p.x, p.y);
 
-      if (inRange(p.x, integers[_P_CUSTOM_X] - 3, integers[_P_CUSTOM_X] + 3)) then // so the mouse doesn't move only a couple pixels when casting
+      if (inRange(p.x, integers[_P_CUSTOM_X] - 3, integers[_P_CUSTOM_X] + 3) and
+          inRange(p.y, integers[_P_CUSTOM_Y] - 3, integers[_P_CUSTOM_Y] + 3)) then // so the mouse doesn't move only a couple pixels when casting
         mouse(p, MOUSE_LEFT)
       else
         mouse(point(integers[_P_CUSTOM_X] + randomRange(-3, 3), integers[_P_CUSTOM_Y]), MOUSE_LEFT);
