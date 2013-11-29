@@ -28,7 +28,7 @@ program AIOSuperheater;
 {$i srl-6/srl.simba}
 
 const
-  SCRIPT_VERSION = '1.3';
+  SCRIPT_VERSION = '1.4';
 
 const
   BAR_BRONZE  = 0;
@@ -76,6 +76,8 @@ const
 const
   __SLOT_NATURE   = 28; // inventory slot holding the nature runes
   __EXP_SUPERHEAT = 53;
+  __UPTEXT_ORE    = ['Ore', 're'];
+  __UPTEXT_COAL   = ['Coal', 'oal', 'Co'];
 
 var
   _bars: array of TBar;
@@ -313,7 +315,7 @@ begin
   writeln('Natures found bank pack: '+toStr(result));
 end;
 
-function getNaturesBackPack(): integer;
+function getNaturesBackpack(): integer;
 begin
   if (not tabBackpack.open()) then
     exit;
@@ -452,6 +454,7 @@ begin
   end;
 end;
 
+// Returns false if the player is finished casting (i.e. out of runes)
 function setCasts(inBank: boolean): boolean;
 var
   nats, prevCasts: integer;
@@ -464,11 +467,16 @@ begin
     nats := getNaturesBackpack();
 
   if (nats <= 0) then
-    exit;
+    nats := 0;
 
   with players[currentPlayer] do
   begin
     prevCasts := integers[_P_CASTS];
+
+    // failsafe in case there was a getNatures fail (can't cast more than the amount of primary ore)
+    if ((nats = 0) and (integers[_P_NATURES_START] - prevCasts > _bars[currentPlayer].amtPrimary)) then
+      exit;
+
     integers[_P_CASTS] := (integers[_P_NATURES_START] - nats);
     statsIncVariable(_bars[currentPlayer].statsName, (integers[_P_CASTS] - prevCasts));
 
@@ -490,23 +498,29 @@ end;
 
 function withdrawOres(bar: TBar): boolean;
 var
-  nats, t: integer;
+  nats, t, amt: integer;
 begin
   nats := getNaturesBank();
   if (nats <= 0) then
     exit;
 
   if (nats >= bar.amtPrimary) then
-    // use Withdraw-All of needed
-    bankscreen.withdraw(_PRIMARY_SLOT, bar.amtPrimary * boolToInt(bar.amtPrimary <> 27), [''])
-  else begin
+  begin
+    amt := (bar.amtPrimary * boolToInt(bar.amtPrimary <> 27)); // either bar.amtPrimary or 0
+
+    if (amt = 0) then
+      bankscreen.withdraw(_PRIMARY_SLOT, WITHDRAW_AMOUNT_ALL, __UPTEXT_ORE)
+    else
+      bankscreen.withdraw(_PRIMARY_SLOT, amt, __UPTEXT_ORE)
+
+  end else begin
     // withdraw the amount of runes we have left
     _bars[currentPlayer].amtPrimary := nats;
-    bankscreen.withdraw(_PRIMARY_SLOT, nats, ['']);
+    bankscreen.withdraw(_PRIMARY_SLOT, nats, __UPTEXT_ORE);
   end;
 
   if (bar.hasSecondary) then
-    bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, ['']);
+    bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, __UPTEXT_COAL);
 
   t := (getSystemTime() + 3000);
   while (getSystemTime() < t) do
@@ -529,13 +543,13 @@ begin
   if (not players[currentPlayer].booleans[_P_COAL_BAG]) then
     exit;
 
-  if (bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, [''])) then
+  if (bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, __UPTEXT_COAL)) then
   begin
     mouseBox(bankscreen.getPackSlotBox(27), MOUSE_MOVE);
     oldCount := bankscreen.getPackCount();
     fastClick(MOUSE_RIGHT);
 
-    if (chooseOption.select(['Fill', 'ill'], 300)) then
+    if (chooseOption.select(['Fill', 'ill', 'll'], 500)) then
     begin
       getMousePos(p.x, p.y);
       mouse(point(p.x - 175 - random(50), p.y - 50 - random(20)), MOUSE_MOVE); // gets rid of other spell info. that may appear after clicking "Fill"
@@ -577,20 +591,19 @@ begin
 
   findNormalRandoms();
 
-  // opens Draynor bank via counter
   if (openBank()) then
   begin
     wait(200 + random(200));
     depositJunk(bar);
+
+    if (not setCasts(true)) then // if player is finished casting
+      exit;
 
     if (not fillCoalBag()) then
       depositJunk(bar);
 
     if (withdrawOres(bar)) then
     begin
-      if (not setCasts(true)) then // if player is finished casting
-        exit;
-
       result := true;
       clearDebug();
       progressReport();
@@ -645,7 +658,7 @@ begin
       mouse(point(x, y), MOUSE_LEFT);
       successful := true;
     end else
-      writeln('castSlot: Uptext fail ('+toStr(bar.oreUptext)+')');
+      writeln('castSlot: Failed to find mouseOverText "'+toStr(bar.oreUptext)+'"');
   end;
 
   if (successful) then
@@ -667,7 +680,7 @@ begin
         break;
       end;
 
-      if (getNaturesBackPack() <= 0) then // if run out of runes
+      if (getNaturesBackpack() <= 0) then // if run out of runes
         exit;
 
       if (t >= 3) then // something went wrong, exit
@@ -733,7 +746,7 @@ begin
   setLength(_bars, length(players));
 end;
 
-procedure next(why: string);
+procedure next(why: string = '');
 begin
   findNormalRandoms();
 
@@ -791,8 +804,8 @@ begin
           end;
 
       if (not castLoad(_bars[currentPlayer])) then
-        if (getNaturesBackpack() <= 1) then
-          next('No runes')
+        if (not setCasts(false)) then // if finished
+          next()
         else
           continue;
 
