@@ -346,6 +346,7 @@ begin
 
   barString := between('<a href="/wiki/' + bar.webString + '"', '</tr>', p);
   barProfit := between('>', '<', between('e="c', '/s', barString));
+  barProfit := replace(barProfit, ',', '', []);
 
   result := strToIntDef(barProfit, -1);
   writeln(bar.name+' Profit: '+toStr(result));
