@@ -561,7 +561,7 @@ end;
 
 function openBank(): boolean;
 var
-  x, y: integer;
+  c: integer;
   t: integer := (getSystemTime() + 3000);
 begin
   if (not isLoggedIn()) then
@@ -576,13 +576,17 @@ begin
     wait(50 + random(50));
   end;
 
-  fastClick(MOUSE_LEFT);
+  repeat
+    fastClick(MOUSE_LEFT);
 
-  while (getSystemTime() < t) and (not result) do
-  begin
-    result := bankscreen.isOpen();
-    wait(50);
-  end;
+    while (getSystemTime() < t) and (not result) do
+    begin
+      result := bankscreen.isOpen();
+      wait(50);
+    end;
+
+    inc(c);
+  until(result or (c >= 3));
 end;
 
 function bank(bar: TBar): boolean;
