@@ -1,26 +1,20 @@
 {==============================================================================\
 |                            All-in-one Superheater                            |
-|                                  By: Coh3n                                   |
+|                                  by Coh3n                                    |
 |==============================================================================|
 |                                                                              |
-|      Written By: Coh3n                                                       |
+|      Author: Coh3n                                                           |
 |      Description: Superheats any bar                                         |
-|      Contact Info: Private message via Villavu.com                           |
+|      Contact: Private message @ SRL-Forums                                   |
 |                                                                              |
-|      Many more scripts of various types can be found at VillaVu.com!         |
+|      Many more scripts of various types can be found at www.villavu.com!     |
  \_____________________________________________________________________________}
 
 {==============================================================================\
 |                              Setup Instructions                              |
 |==============================================================================]
 |                                                                              |
-|       1. Have Nature runes in backpack slot 28                               |
-|       2. Have Coal bag in backpack slot 27 (Coal bag optional)               |
-|       3. Be in a bank where the booth is in front of you when compass is     |
-|          facing north (I recommend Lumbridge top floor)                      |
-|       4. Setup script from lines 81-146                                      |
-|       5. Save your changes and hit Run (F9)                                  |
-|       6. Post any progress reports and/or bugs!                              |
+|       1. See thread: http://villavu.com/forum/showthread.php?t=72633         |
  \_____________________________________________________________________________}
 
 program AIOSuperheater;
@@ -28,7 +22,7 @@ program AIOSuperheater;
 {$i srl-6/srl.simba}
 
 const
-  SCRIPT_VERSION = '1.4';
+  SCRIPT_VERSION = '1.5';
 
 const
   BAR_BRONZE  = 0;
@@ -48,7 +42,7 @@ type
     expSmithing: extended;
     oreUptext: TStringArray;
     webString: string;
-    _profit: integer;
+    profit: integer;
   end;
 
 // _* means changing won't break script, but still shouldn't change
@@ -58,8 +52,6 @@ const
   _P_TIME     = 2;
   _P_CUSTOM_X = 3;
   _P_CUSTOM_Y = 4;
-
-  _P_BANK  = 0;
 
   _P_COAL_BAG = 0;
 
@@ -76,8 +68,10 @@ const
 const
   __SLOT_NATURE   = 28; // inventory slot holding the nature runes
   __EXP_SUPERHEAT = 53;
-  __UPTEXT_ORE    = ['Ore', 're'];
-  __UPTEXT_COAL   = ['Coal', 'oal', 'Co'];
+  __MOUSEOVERTEXT_ORE  = ['Ore', 're'];
+  __MOUSEOVERTEXT_COAL = ['Coal', 'oal', 'Co'];
+  __ANTIBAN_HOVER = 0;
+  __ANTIBAN_WAIT  = 1;
 
 var
   _bars: array of TBar;
@@ -95,6 +89,7 @@ const
   SRL_LOG = true;      // saves SRL debug to a log file
   SRL_DEBUG = true;    // debugs SRL procedures in the debug box
   IP_SCREEN = true;    // takes a screenshot of your last IP in case of hacks
+  ANTIBAN_CHANCE = 0;  // Chance (in %) of performing antiban procedures
 
 procedure declarePlayers();
 begin
@@ -151,7 +146,6 @@ end;
 
 procedure signature;
 begin
-  ClearDebug;
   Writeln('                                            ___          ');
   Wait(100);
   Writeln('                       ____                /\__\         ');
@@ -183,6 +177,28 @@ begin
     mouse(p, MOUSE_LEFT);
 
   closeAdWindow();
+end;
+
+procedure antiban(which: integer);
+begin
+  if (random(100) + 1 > ANTIBAN_CHANCE) then
+    exit;
+
+  case which of
+    __ANTIBAN_HOVER:
+      begin
+        writeln('Hovering skills for antiban...');
+        gameTabs.openTab(TAB_STATS);
+        hoverSkill(SKILL_MAGIC);
+        hoverSkill(SKILL_SMITHING);
+      end;
+
+    __ANTIBAN_WAIT:
+      begin
+        writeln('Waiting 3-6 seconds for antiban...');
+        wait(3000 + random(3000));
+      end;
+  end;
 end;
 
 function randomMinutes(min: integer): integer;
@@ -371,7 +387,7 @@ const
   __TOK = ',';
 procedure progressReport();
 var
-  i, _expM, _expS, _worked, _profit: integer;
+  i, _expM, _expS, _worked, profit: integer;
   _bar: TBar;
 begin
   setScriptProp(sp_WriteTimeStamp, [false]);
@@ -393,10 +409,10 @@ begin
       _expS := getSmithingExp(_bar, integers[_P_CASTS]);
       _worked := worked.getTime();
 
-      if (_bar._profit > 0) then
-        _profit := (_bar._profit * integers[_P_CASTS])
+      if (_bar.profit > 0) then
+        profit := (_bar.profit * integers[_P_CASTS])
       else
-        _profit := -1;
+        profit := -1;
 
       if (isActive) then
         writeln(padR('[    Player ~ '+toStr(i)+' (True)', __PADR)+']')
@@ -409,7 +425,7 @@ begin
       writeln(padR('[      Magic XP ~ '+groupDigits(_expM, __TOK)+' ('+groupDigits(perHour(_expM, _worked), __TOK)+' P/H)', __PADR)+']');
       writeln(padR('[      Smith XP ~ '+groupDigits(_expS, __TOK)+' ('+groupDigits(perHour(_expS, _worked), __TOK)+' P/H)', __PADR)+']');
       writeln(padR('[      Total XP ~ '+groupDigits(_expM+_expS, __TOK)+' ('+groupDigits(perHour((_expM+_expS), _worked), __TOK)+' P/H)', __PADR)+']');
-      writeln(padR('[      Profit   ~ '+groupDigits(_profit, __TOK)+' ('+groupDigits(perHour(_profit, _worked), __TOK)+' P/H)', __PADR)+']');
+      writeln(padR('[      Profit   ~ '+groupDigits(profit, __TOK)+' ('+groupDigits(perHour(profit, _worked), __TOK)+' P/H)', __PADR)+']');
 
       writeln('[                                           ]');
 
@@ -510,18 +526,18 @@ begin
     amt := (bar.amtPrimary * boolToInt(bar.amtPrimary <> 27)); // either bar.amtPrimary or 0
 
     if (amt = 0) then
-      bankscreen.withdraw(_PRIMARY_SLOT, WITHDRAW_AMOUNT_ALL, __UPTEXT_ORE)
+      bankscreen.withdraw(_PRIMARY_SLOT, WITHDRAW_AMOUNT_ALL, __MOUSEOVERTEXT_ORE)
     else
-      bankscreen.withdraw(_PRIMARY_SLOT, amt, __UPTEXT_ORE)
+      bankscreen.withdraw(_PRIMARY_SLOT, amt, __MOUSEOVERTEXT_ORE)
 
   end else begin
     // withdraw the amount of runes we have left
     _bars[currentPlayer].amtPrimary := nats;
-    bankscreen.withdraw(_PRIMARY_SLOT, nats, __UPTEXT_ORE);
+    bankscreen.withdraw(_PRIMARY_SLOT, nats, __MOUSEOVERTEXT_ORE);
   end;
 
   if (bar.hasSecondary) then
-    bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, __UPTEXT_COAL);
+    bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, __MOUSEOVERTEXT_COAL);
 
   t := (getSystemTime() + 3000);
   while (getSystemTime() < t) do
@@ -544,7 +560,7 @@ begin
   if (not players[currentPlayer].booleans[_P_COAL_BAG]) then
     exit;
 
-  if (bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, __UPTEXT_COAL)) then
+  if (bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, __MOUSEOVERTEXT_COAL)) then
   begin
     mouseBox(bankscreen.getPackSlotBox(27), MOUSE_MOVE);
     oldCount := bankscreen.getPackCount();
@@ -562,25 +578,29 @@ end;
 function openBank(): boolean;
 var
   c: integer;
-  t: integer := (getSystemTime() + 3000);
+  t: integer := (getSystemTime() + 6000);
 begin
   if (not isLoggedIn()) then
     exit;
 
-  mouse(point(mainscreen.playerBox.x1 + 15, mainscreen.playerBox.y1 - 20).rand(10), MOUSE_MOVE);
-
-  // a failsafe in case it tries to cast a spell on the bank booth
-  if (isMouseOverText(['Cast', 'ast', 'heat', 'item'])) then
-  begin
-    fastClick(MOUSE_LEFT);
-    wait(50 + random(50));
-  end;
-
   repeat
+    mouse(point(mainscreen.playerBox.x1 + 15, mainscreen.playerBox.y1 - 20).rand(10), MOUSE_MOVE);
+
+    // a failsafe in case it tries to cast a spell on the bank booth
+    if (isMouseOverText(['Cast', 'ast', 'heat', 'item'])) then
+    begin
+      fastClick(MOUSE_LEFT);
+      wait(50 + random(50));
+    end;
+
     fastClick(MOUSE_LEFT);
 
     while (getSystemTime() < t) and (not result) do
     begin
+      if (pinscreen.isOpen()) then
+        if (pinscreen.enter(players[currentPlayer].bankPin)) then
+          t := (getSystemTime() + 6000);
+
       result := bankscreen.isOpen();
       wait(50);
     end;
@@ -595,6 +615,7 @@ begin
     exit;
 
   findNormalRandoms();
+  antiban(__ANTIBAN_HOVER);
 
   if (openBank()) then
   begin
@@ -610,13 +631,12 @@ begin
     if (withdrawOres(bar)) then
     begin
       result := true;
-      clearDebug();
       progressReport();
       bankscreen.close();
     end;
 
   end else
-    writeln('bank: Failed to open '+players[currentPlayer].strings[_P_BANK]);
+    writeln('bank: Failed to open');
 end;
 
 function myCast(): boolean;
@@ -653,6 +673,7 @@ begin
   begin
     getMousePos(x, y);
     mouseSlot := tabBackpack.pointToSlot(point(x, y));
+    antiban(__ANTIBAN_WAIT);
 
     if (slot > mouseSlot) or (not isMouseOverText(bar.oreUptext, 300)) then
       tabBackpack.mouseSlot(bar.amtPrimary, MOUSE_MOVE);
@@ -791,13 +812,18 @@ begin
     end;
 
     _bars[currentPlayer] := getBar(players[currentPlayer].integers[_P_BAR]);
-    _bars[currentPlayer]._profit := getProfit(_bars[currentPlayer]);
+    _bars[currentPlayer].profit := getProfit(_bars[currentPlayer]);
     tmp.start();
 
     repeat
       if (not bank(_bars[currentPlayer])) then
+      begin
+        writeln('Failed to bank, possibly lag; waiting about 10 seconds...');
+        wait(randomRange(8000, 12000));
+
         if (not bank(_bars[currentPlayer])) then // retry
           next('Failed to bank');
+      end;
 
       with players[currentPlayer] do
         if (integers[_P_TIME] > 0) then
@@ -809,10 +835,15 @@ begin
           end;
 
       if (not castLoad(_bars[currentPlayer])) then
+      begin
+        writeln('Failed to cast a full load, possibly lag; waiting about 10 seconds...');
+        wait(randomRange(8000, 12000));
+
         if (not setCasts(false)) then // if finished
           next()
         else
           continue;
+      end;
 
       statsCommit();
     until(not players[currentPlayer].isActive);
