@@ -22,7 +22,7 @@ program AIOSuperheater;
 {$i srl-6/srl.simba}
 
 const
-  SCRIPT_VERSION = '1.5';
+  SCRIPT_VERSION = '1.6';
 
 const
   BAR_BRONZE  = 0;
@@ -70,6 +70,7 @@ const
   __EXP_SUPERHEAT = 53;
   __MOUSEOVERTEXT_ORE  = ['Ore', 're'];
   __MOUSEOVERTEXT_COAL = ['Coal', 'oal', 'Co'];
+  __MOUSEOVERTEXT_CAST = ['Cast', 'ast'];
   __ANTIBAN_HOVER = 0;
   __ANTIBAN_WAIT  = 1;
 
@@ -89,7 +90,8 @@ const
   SRL_LOG = true;      // saves SRL debug to a log file
   SRL_DEBUG = true;    // debugs SRL procedures in the debug box
   IP_SCREEN = true;    // takes a screenshot of your last IP in case of hacks
-  ANTIBAN_CHANCE = 0;  // Chance (in %) of performing antiban procedures
+  ANTIBAN_CHANCE = 0;  // chance (in %) of performing antiban procedures
+  SPELL_KEY = '0';     // key that Superheat item is bound to; '' = no key bind cast
 
 procedure declarePlayers();
 begin
@@ -583,6 +585,12 @@ begin
   if (not isLoggedIn()) then
     exit;
 
+  if (bankscreen.isOpen()) then
+  begin
+    result := true;
+    exit();
+  end;
+
   repeat
     mouse(point(mainscreen.playerBox.x1 + 15, mainscreen.playerBox.y1 - 20).rand(10), MOUSE_MOVE);
 
@@ -633,13 +641,14 @@ begin
       result := true;
       progressReport();
       bankscreen.close();
+      tabBackpack.waitWhileLocked();
     end;
 
   end else
     writeln('bank: Failed to open');
 end;
 
-function myCast(): boolean;
+function cast(): boolean;
 var
   p: TPoint;
 begin
@@ -666,7 +675,7 @@ begin
   if (not isLoggedIn()) then
     exit;
 
-  if (not myCast()) then
+  if (not cast()) then
     exit;
 
   if (waitOnInvTab(2000)) then
@@ -680,8 +689,7 @@ begin
 
     if (isMouseOverText(bar.oreUptext, 300)) then
     begin
-      getMousePos(x, y);
-      mouse(point(x, y), MOUSE_LEFT);
+      fastClick(MOUSE_LEFT);
       successful := true;
     end else
       writeln('castSlot: Failed to find mouseOverText "'+toStr(bar.oreUptext)+'"');
@@ -691,15 +699,55 @@ begin
     result := waitOnMagicTab(2000);
 end;
 
+function castKeyBind(barSlot: integer; bar: TBar): boolean;
+var
+  oldOutline, c: integer;
+  t := (getSystemTime() + 3000);
+begin
+  if (not tabBackpack.open()) then
+    exit();
+
+  tabBackpack.mouseSlot(bar.amtPrimary, MOUSE_MOVE);
+
+  repeat
+    typeSend(SPELL_KEY, false);
+
+    if (isMouseOverText(__MOUSEOVERTEXT_CAST, 300)) then
+    begin
+      oldOutline := countColor(ITEM_OUTLINE_BLACK, tabBackpack.getSlotBox(barSlot));
+      fastClick(MOUSE_LEFT);
+
+      // wait until bar replaces ore in backpack
+      while (not result) and (getSystemTime() < t) do
+      begin
+        result := (countColor(ITEM_OUTLINE_BLACK, tabBackpack.getSlotBox(barSlot)) <> oldOutline);
+        wait(50 + random(50));
+      end;
+    end;
+
+    c := c + 1;
+
+  until(result or (c >= 5));
+
+  if (not result) then
+    writeln('castKeyBind: Failed to cast via key bind');
+end;
+
 function castLoad(bar: TBar): boolean;
 var
   i, c, t: integer;
+  didCast: boolean;
 begin
   for i := 1 to (bar.amtPrimary) do
     repeat
       inc(t);
 
-      if (castSlot(i, bar)) then // last slot ore appears
+      if (SPELL_KEY <> '') then
+        didCast := castKeyBind(i, bar)
+      else
+        didCast := castSlot(i, bar);
+
+      if (didCast) then
       begin
         t := 0;
         inc(c);
