@@ -104,6 +104,8 @@ begin
     integers[_P_BAR]      := BAR_MITHRIL; // bar to make
     integers[_P_BREAK]    := 0;           // how many minutes to break for (leave 0 to not break)
     integers[_P_TIME]     := 0;           // time before breaking (leave 0 to not break)
+
+    // leave these alone if you are using the key bind feature
     integers[_P_CUSTOM_X] := 645;         // X coord of where to click the superheat spell
     integers[_P_CUSTOM_Y] := 391;         // Y coord of where to click the superheat spell
   end;
