@@ -67,6 +67,7 @@ const
 // __* means changing will break script
 const
   __SLOT_NATURE   = 28; // inventory slot holding the nature runes
+  __SLOT_COAL_BAG = 27; // inventory slot holding the coal bag
   __EXP_SUPERHEAT = 53;
   __MOUSEOVERTEXT_ORE  = ['Ore', 're'];
   __MOUSEOVERTEXT_COAL = ['Coal', 'oal', 'Co'];
@@ -530,33 +531,36 @@ begin
     amt := (bar.amtPrimary * boolToInt(bar.amtPrimary <> 27)); // either bar.amtPrimary or 0
 
     if (amt = 0) then
-      bankscreen.withdraw(_PRIMARY_SLOT, WITHDRAW_AMOUNT_ALL, __MOUSEOVERTEXT_ORE)
+      result := bankscreen.withdraw(_PRIMARY_SLOT, WITHDRAW_AMOUNT_ALL, __MOUSEOVERTEXT_ORE)
     else
-      bankscreen.withdraw(_PRIMARY_SLOT, amt, __MOUSEOVERTEXT_ORE)
+      result := bankscreen.withdraw(_PRIMARY_SLOT, amt, __MOUSEOVERTEXT_ORE)
 
   end else begin
     // withdraw the amount of runes we have left
     _bars[currentPlayer].amtPrimary := nats;
-    bankscreen.withdraw(_PRIMARY_SLOT, nats, __MOUSEOVERTEXT_ORE);
+    result := bankscreen.withdraw(_PRIMARY_SLOT, nats, __MOUSEOVERTEXT_ORE);
   end;
 
   if (bar.hasSecondary) then
+  begin
+    result := false;
     bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, __MOUSEOVERTEXT_COAL);
 
-  t := (getSystemTime() + 3000);
-  while (getSystemTime() < t) do
-  begin
-    if (isItemIn(bankscreen.getPackSlotBox(_bars[currentPlayer].amtPrimary + 1))) then
+    t := (getSystemTime() + 3000);
+    while (getSystemTime() < t) do
     begin
-      result := true;
-      break;
-    end;
+      if (isItemIn(bankscreen.getPackSlotBox(_bars[currentPlayer].amtPrimary + 1))) then
+      begin
+        result := true;
+        break;
+      end;
 
-    wait(50);
+      wait(50);
+    end;
   end;
 end;
 
-function fillCoalBag(): boolean;
+function fillCoalBag(bar: TBar): boolean;
 var
   p: TPoint;
   oldCount: integer;
@@ -566,7 +570,7 @@ begin
 
   if (bankscreen.withdraw(_SECONDARY_SLOT, WITHDRAW_AMOUNT_ALL, __MOUSEOVERTEXT_COAL)) then
   begin
-    mouseBox(bankscreen.getPackSlotBox(27), MOUSE_MOVE);
+    mouseBox(bankscreen.getPackSlotBox(__SLOT_COAL_BAG), MOUSE_MOVE);
     oldCount := bankscreen.getPackCount();
     fastClick(MOUSE_RIGHT);
 
@@ -574,7 +578,10 @@ begin
     begin
       getMousePos(p.x, p.y);
       mouse(point(p.x - 175 - random(50), p.y - 50 - random(20)), MOUSE_MOVE); // gets rid of other spell info. that may appear after clicking "Fill"
-      result := waitPackCountChanged(oldCount, 3000);
+
+      // in case the coal bag only needed a few ore to fill
+      if (waitPackCountChanged(oldCount, 3000)) then
+        result := depositJunk(bar);
     end;
   end;
 end;
@@ -635,7 +642,7 @@ begin
     if (not setCasts(true)) then // if player is finished casting
       exit;
 
-    if (not fillCoalBag()) then
+    if (not fillCoalBag(bar)) then // in case the bag is already full
       depositJunk(bar);
 
     if (withdrawOres(bar)) then
@@ -644,7 +651,8 @@ begin
       progressReport();
       bankscreen.close();
       tabBackpack.waitWhileLocked();
-    end;
+    end else
+      writeln('bank: Failed to withdraw ores');
 
   end else
     writeln('bank: Failed to open');
