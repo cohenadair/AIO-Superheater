@@ -55,6 +55,8 @@ const
 
   _P_COAL_BAG = 0;
 
+  _P_SPELL_KEY = 0;
+
   // not set by user
   _P_NATURES_START = 10;
   _P_CASTS         = 11;
@@ -92,7 +94,6 @@ const
   SRL_DEBUG = true;    // debugs SRL procedures in the debug box
   IP_SCREEN = true;    // takes a screenshot of your last IP in case of hacks
   ANTIBAN_CHANCE = 0;  // chance (in %) of performing antiban procedures
-  SPELL_KEY = '0';     // key that Superheat item is bound to; '' = no key bind cast
 
 procedure declarePlayers();
 begin
@@ -105,6 +106,7 @@ begin
     integers[_P_BAR]      := BAR_MITHRIL; // bar to make
     integers[_P_BREAK]    := 0;           // how many minutes to break for (leave 0 to not break)
     integers[_P_TIME]     := 0;           // time before breaking (leave 0 to not break)
+    strings[_P_SPELL_KEY] := '0';         // the key Superheat item is bound to ('' = no key bind)
 
     // leave these alone if you are using the key bind feature
     integers[_P_CUSTOM_X] := 645;         // X coord of where to click the superheat spell
@@ -117,6 +119,9 @@ begin
     integers[_P_BAR]      := BAR_MITHRIL;
     integers[_P_BREAK]    := 0;
     integers[_P_TIME]     := 0;
+    strings[_P_SPELL_KEY] := '0';
+    integers[_P_CUSTOM_X] := 645;
+    integers[_P_CUSTOM_Y] := 391;
   end;
 
   with players[2] do
@@ -125,6 +130,9 @@ begin
     integers[_P_BAR]      := BAR_MITHRIL;
     integers[_P_BREAK]    := 0;
     integers[_P_TIME]     := 0;
+    strings[_P_SPELL_KEY] := '0';
+    integers[_P_CUSTOM_X] := 645;
+    integers[_P_CUSTOM_Y] := 391;
   end;
 
   with players[3] do
@@ -133,6 +141,9 @@ begin
     integers[_P_BAR]      := BAR_MITHRIL;
     integers[_P_BREAK]    := 0;
     integers[_P_TIME]     := 0;
+    strings[_P_SPELL_KEY] := '0';
+    integers[_P_CUSTOM_X] := 645;
+    integers[_P_CUSTOM_Y] := 391;
   end;
 
   with players[4] do
@@ -141,6 +152,9 @@ begin
     integers[_P_BAR]      := BAR_MITHRIL;
     integers[_P_BREAK]    := 0;
     integers[_P_TIME]     := 0;
+    strings[_P_SPELL_KEY] := '0';
+    integers[_P_CUSTOM_X] := 645;
+    integers[_P_CUSTOM_Y] := 391;
   end;
 }
 end;
@@ -351,12 +365,12 @@ end;
 
 function getSmithingExp(bar: TBar; casts: integer): integer;
 begin
-  result := round(bar.expSmithing * casts);
+  result := abs(round(bar.expSmithing * casts));
 end;
 
 function getMagicExp(casts: integer): integer;
 begin
-  result := round(__EXP_SUPERHEAT * casts);
+  result := abs(round(__EXP_SUPERHEAT * casts));
 end;
 
 function getProfit(bar: TBar): integer; // credit to euphemism
@@ -409,7 +423,7 @@ begin
   for i := 0 to high(players) do
     with players[i] do
     begin
-      _bar  := _bars[currentPlayer];
+      _bar  := _bars[i];
       _expM := getMagicExp(integers[_P_CASTS]);
       _expS := getSmithingExp(_bar, integers[_P_CASTS]);
       _worked := worked.getTime();
@@ -562,7 +576,6 @@ end;
 
 function fillCoalBag(bar: TBar): boolean;
 var
-  p: TPoint;
   oldCount: integer;
 begin
   if (not players[currentPlayer].booleans[_P_COAL_BAG]) then
@@ -576,8 +589,8 @@ begin
 
     if (chooseOption.select(['Fill', 'ill', 'll'], 500)) then
     begin
-      getMousePos(p.x, p.y);
-      mouse(point(p.x - 175 - random(50), p.y - 50 - random(20)), MOUSE_MOVE); // gets rid of other spell info. that may appear after clicking "Fill"
+      wait(randomRange(100, 200));
+      mouseBox(bankscreen.getBankSlotBox(_PRIMARY_SLOT), MOUSE_MOVE); // gets rid of other spell info. that may appear after clicking "Fill"
 
       // in case the coal bag only needed a few ore to fill
       if (waitPackCountChanged(oldCount, 3000)) then
@@ -720,7 +733,7 @@ begin
   tabBackpack.mouseSlot(bar.amtPrimary, MOUSE_MOVE);
 
   repeat
-    typeSend(SPELL_KEY, false);
+    typeSend(players[currentPlayer].strings[_P_SPELL_KEY], false);
 
     if (isMouseOverText(__MOUSEOVERTEXT_CAST, 300)) then
     begin
@@ -752,7 +765,7 @@ begin
     repeat
       inc(t);
 
-      if (SPELL_KEY <> '') then
+      if (players[currentPlayer].strings[_P_SPELL_KEY] <> '') then
         didCast := castKeyBind(i, bar)
       else
         didCast := castSlot(i, bar);
@@ -805,6 +818,8 @@ begin
 end;
 
 function setupPlayer(): boolean;
+var
+  t: integer;
 begin
   if (players[currentPlayer].login()) then
   begin
@@ -812,7 +827,17 @@ begin
     mainscreen.setAngle(MS_ANGLE_HIGH);
     result := true;
     findNormalRandoms();
-    players[currentPlayer].integers[_P_NATURES_START] := getNaturesBackpack();
+
+    // in case a different tab is accidentially opened
+    while ((players[currentPlayer].integers[_P_NATURES_START] <= 0) and (t < 3)) do
+    begin
+      players[currentPlayer].integers[_P_NATURES_START] := getNaturesBackpack();
+      wait(50 + random(50));
+      t := t + 1;
+    end;
+
+    writeln('Player '+toStr(currentPlayer)+' start Nature runes: '+
+      toStr(players[currentPlayer].integers[_P_NATURES_START]));
   end;
 end;
 
@@ -828,6 +853,12 @@ begin
       players[i].Strings[_P_FALSE] := 'User set false';
 
   setLength(_bars, length(players));
+
+  for i := 0 to high(_bars) do
+  begin
+    _bars[i] := getBar(players[i].integers[_P_BAR]);
+    _bars[i].profit := getProfit(_bars[i]);
+  end;
 end;
 
 procedure next(why: string = '');
@@ -869,28 +900,32 @@ begin
       continue;
     end;
 
-    _bars[currentPlayer] := getBar(players[currentPlayer].integers[_P_BAR]);
-    _bars[currentPlayer].profit := getProfit(_bars[currentPlayer]);
     tmp.start();
 
     repeat
+      // break or switch players if it's time
+      with players[currentPlayer] do
+        if (integers[_P_TIME] > 0) then
+          if (tmp.getTime() >= (integers[_P_TIME] * 60000 {+ randomMinutes(5)})) then
+          begin
+            wait(100 + random(50));
+            takeBreak();
+            tmp.reset();
+            tmp.start();
+            break;
+          end;
+
       if (not bank(_bars[currentPlayer])) then
       begin
         writeln('Failed to bank, possibly lag; waiting about 10 seconds...');
         wait(randomRange(8000, 12000));
 
         if (not bank(_bars[currentPlayer])) then // retry
+        begin
           next('Failed to bank');
+          break;
+        end;
       end;
-
-      with players[currentPlayer] do
-        if (integers[_P_TIME] > 0) then
-          if (tmp.getTime() >= (integers[_P_TIME] * 60000 + randomMinutes(5))) then
-          begin
-            takeBreak();
-            tmp.reset();
-            tmp.start();
-          end;
 
       if (not castLoad(_bars[currentPlayer])) then
       begin
@@ -898,12 +933,15 @@ begin
         wait(randomRange(8000, 12000));
 
         if (not setCasts(false)) then // if finished
-          next()
-        else
+        begin
+          next();
+          break;
+        end else
           continue;
       end;
 
       statsCommit();
+
     until(not players[currentPlayer].isActive);
 
     if (not players[currentPlayer].isActive) then
