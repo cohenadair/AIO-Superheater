@@ -50,12 +50,13 @@ const
   _P_BAR      = 0;
   _P_BREAK    = 1;
   _P_TIME     = 2;
-  _P_CUSTOM_X = 3;
-  _P_CUSTOM_Y = 4;
+  _P_SPELL_X  = 3;
+  _P_SPELL_Y  = 4;
 
   _P_COAL_BAG = 0;
 
   _P_SPELL_KEY = 0;
+  _P_BANK_DIR  = 1;
 
   // not set by user
   _P_NATURES_START = 10;
@@ -76,6 +77,10 @@ const
   __MOUSEOVERTEXT_CAST = ['Cast', 'ast'];
   __ANTIBAN_HOVER = 0;
   __ANTIBAN_WAIT  = 1;
+  __BANK_NORTH: TPoint = [275, 155];
+  __BANK_EAST : TPoint = [315, 185];
+  __BANK_SOUTH: TPoint = [285, 215];
+  __BANK_WEST : TPoint = [245, 185];
 
 var
   _bars: array of TBar;
@@ -107,6 +112,7 @@ begin
     integers[_P_BREAK]    := 0;           // how many minutes to break for (leave 0 to not break)
     integers[_P_TIME]     := 0;           // time before breaking (leave 0 to not break)
     strings[_P_SPELL_KEY] := '0';         // the key Superheat item is bound to ('' = no key bind)
+    strings[_P_BANK_DIR]  := 'N';         // the direction of the bank relative to the player (N, E, S, W)
 
     // leave these alone if you are using the key bind feature
     integers[_P_CUSTOM_X] := 645;         // X coord of where to click the superheat spell
@@ -120,8 +126,7 @@ begin
     integers[_P_BREAK]    := 0;
     integers[_P_TIME]     := 0;
     strings[_P_SPELL_KEY] := '0';
-    integers[_P_CUSTOM_X] := 645;
-    integers[_P_CUSTOM_Y] := 391;
+    strings[_P_BANK_DIR]  := 'N';
   end;
 
   with players[2] do
@@ -131,8 +136,7 @@ begin
     integers[_P_BREAK]    := 0;
     integers[_P_TIME]     := 0;
     strings[_P_SPELL_KEY] := '0';
-    integers[_P_CUSTOM_X] := 645;
-    integers[_P_CUSTOM_Y] := 391;
+    strings[_P_BANK_DIR]  := 'N';
   end;
 
   with players[3] do
@@ -142,8 +146,7 @@ begin
     integers[_P_BREAK]    := 0;
     integers[_P_TIME]     := 0;
     strings[_P_SPELL_KEY] := '0';
-    integers[_P_CUSTOM_X] := 645;
-    integers[_P_CUSTOM_Y] := 391;
+    strings[_P_BANK_DIR]  := 'N';
   end;
 
   with players[4] do
@@ -153,8 +156,7 @@ begin
     integers[_P_BREAK]    := 0;
     integers[_P_TIME]     := 0;
     strings[_P_SPELL_KEY] := '0';
-    integers[_P_CUSTOM_X] := 645;
-    integers[_P_CUSTOM_Y] := 391;
+    strings[_P_BANK_DIR]  := 'N';
   end;
 }
 end;
@@ -599,6 +601,18 @@ begin
   end;
 end;
 
+function getBankPoint(bankDir: string): TPoint;
+begin
+  case lowerCase(bankDir) of
+    'n': result := __BANK_NORTH;
+    'e': result := __BANK_EAST;
+    's': result := __BANK_SOUTH;
+    'w': result := __BANK_WEST;
+  else
+    writeln('getBankPoint(): ERROR; invalid bank direction for player: ', currentPlayer);
+  end;
+end;
+
 function openBank(): boolean;
 var
   c: integer;
@@ -614,7 +628,7 @@ begin
   end;
 
   repeat
-    mouse(point(mainscreen.playerBox.x1 + 15, mainscreen.playerBox.y1 - 20).rand(10), MOUSE_MOVE);
+    mouse(getBankPoint(players[currentPlayer].strings[_P_BANK_DIR]).rand(15), MOUSE_MOVE);
 
     // a failsafe in case it tries to cast a spell on the bank booth
     if (isMouseOverText(['Cast', 'ast', 'heat', 'item'])) then
@@ -680,11 +694,11 @@ begin
     begin
       getMousePos(p.x, p.y);
 
-      if (inRange(p.x, integers[_P_CUSTOM_X] - 3, integers[_P_CUSTOM_X] + 3) and
-          inRange(p.y, integers[_P_CUSTOM_Y] - 3, integers[_P_CUSTOM_Y] + 3)) then // so the mouse doesn't move only a couple pixels when casting
+      if (inRange(p.x, integers[_P_SPELL_X] - 3, integers[_P_SPELL_X] + 3) and
+          inRange(p.y, integers[_P_SPELL_Y] - 3, integers[_P_SPELL_Y] + 3)) then // so the mouse doesn't move only a couple pixels when casting
         mouse(p, MOUSE_LEFT)
       else
-        mouse(point(integers[_P_CUSTOM_X] + randomRange(-3, 3), integers[_P_CUSTOM_Y]), MOUSE_LEFT);
+        mouse(point(integers[_P_SPELL_X] + randomRange(-3, 3), integers[_P_SPELL_Y]), MOUSE_LEFT);
 
       result := true;
     end;
