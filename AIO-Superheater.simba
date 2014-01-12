@@ -20,9 +20,10 @@
 program AIOSuperheater;
 {$DEFINE SMART}
 {$i srl-6/srl.simba}
+{$i srl-6/lib/misc/srlplayerform.simba}
 
 const
-  SCRIPT_VERSION = '1.7';
+  SCRIPT_VERSION = '1.8';
 
 const
   BAR_BRONZE  = 0;
@@ -84,86 +85,68 @@ const
 
 var
   _bars: array of TBar;
+  antibanChance: integer;
 
-{==============================================================================\
-|                               Script Setup                                   |
-|==============================================================================|
-|                                                                              |
-|    * To setup the script and your players.                                   |
- \_____________________________________________________________________________}
-
-const
-  STATS_ID = '';       // the stats ID you use to login @ stats.villavu.com
-  STATS_PASSWORD = ''; // the stats password
-  SRL_LOG = true;      // saves SRL debug to a log file
-  SRL_DEBUG = true;    // debugs SRL procedures in the debug box
-  IP_SCREEN = true;    // takes a screenshot of your last IP in case of hacks
-  ANTIBAN_CHANCE = 0;  // chance (in %) of performing antiban procedures
-
-procedure declarePlayers();
+function strToBar(s: string): integer;
 begin
-  players.setup(['PlayerNames/Nicknames/LoginNames'], 'PlayerFileName');
-  currentPlayer := 0;
-
-  with players[0] do
-  begin
-    booleans[_P_COAL_BAG] := true;        // true = using Coal bag
-    integers[_P_BAR]      := BAR_MITHRIL; // bar to make
-    integers[_P_BREAK]    := 0;           // how many minutes to break for (leave 0 to not break)
-    integers[_P_TIME]     := 0;           // time before breaking (leave 0 to not break)
-    strings[_P_SPELL_KEY] := '0';         // the key Superheat item is bound to ('' = no key bind)
-    strings[_P_BANK_DIR]  := 'N';         // the direction of the bank relative to the player (N, E, S, W)
-
-    // leave these alone if you are using the key bind feature
-    integers[_P_CUSTOM_X] := 645;         // X coord of where to click the superheat spell
-    integers[_P_CUSTOM_Y] := 391;         // Y coord of where to click the superheat spell
+  case s of
+    'Bronze': result := BAR_BRONZE;
+    'Iron': result := BAR_IRON;
+    'Silver': result := BAR_SILVER;
+    'Steel': result := BAR_STEEL;
+    'Gold': result := BAR_GOLD;
+    'Mithril': result := BAR_MITHRIL;
+    'Adamant': result := BAR_ADAMANT;
+    'Rune': result := BAR_RUNE;
+  else
+    writeln('Invalid bar selection!');
   end;
-{
-  with players[1] do
-  begin
-    booleans[_P_COAL_BAG] := true;
-    integers[_P_BAR]      := BAR_MITHRIL;
-    integers[_P_BREAK]    := 0;
-    integers[_P_TIME]     := 0;
-    strings[_P_SPELL_KEY] := '0';
-    strings[_P_BANK_DIR]  := 'N';
-  end;
-
-  with players[2] do
-  begin
-    booleans[_P_COAL_BAG] := true;
-    integers[_P_BAR]      := BAR_MITHRIL;
-    integers[_P_BREAK]    := 0;
-    integers[_P_TIME]     := 0;
-    strings[_P_SPELL_KEY] := '0';
-    strings[_P_BANK_DIR]  := 'N';
-  end;
-
-  with players[3] do
-  begin
-    booleans[_P_COAL_BAG] := true;
-    integers[_P_BAR]      := BAR_MITHRIL;
-    integers[_P_BREAK]    := 0;
-    integers[_P_TIME]     := 0;
-    strings[_P_SPELL_KEY] := '0';
-    strings[_P_BANK_DIR]  := 'N';
-  end;
-
-  with players[4] do
-  begin
-    booleans[_P_COAL_BAG] := true;
-    integers[_P_BAR]      := BAR_MITHRIL;
-    integers[_P_BREAK]    := 0;
-    integers[_P_TIME]     := 0;
-    strings[_P_SPELL_KEY] := '0';
-    strings[_P_BANK_DIR]  := 'N';
-  end;
-}
 end;
 
-{==============================================================================\
-|                             End Script Setup                                 |
-|==============================================================================}
+procedure initPlayerForm();
+begin
+  with playerForm do
+  begin
+    name := 'AIO Superheater ~ by Coh3n';
+    scriptHelpThread := 'http://villavu.com/forum/showthread.php?t=72633';
+    scriptSettingsPath := '';
+
+    editBoxLabels := ['Minutes before breaking', 'Minutes to break for', 'Keybind key', 'Bank direction (N, E, S, W)', 'Spell Point X', 'Spell Point Y', 'Stats ID', 'Stats Password', 'Percent change for antiban'];
+    editBoxDefaults := ['0', '0', '0', 'N', '0', '0', '', '', '0'];
+    checkBoxLabels := ['Use Coal bag', 'Save SRL log', 'Show SRL debug', 'Take screenshot of IP'];
+    checkBoxDefaults := ['True', 'True', 'True', 'True'];
+    comboBoxLabels := ['Bar type'];
+    comboBoxDefaults := ['Steel'];
+
+    // this needs to be done for every element in the comboBoxLabels array
+    setLength(comboBoxItems, length(comboBoxLabels));
+    comboBoxItems[0] := ['Bronze', 'Iron', 'Silver', 'Steel', 'Gold', 'Mithril', 'Adamant', 'Rune'];
+  end;
+end;
+
+procedure declarePlayers();
+var
+  i: integer;
+begin
+  players.setup(playerForm.playerNames, playerForm.playerFile);
+  currentPlayer := 0;
+
+  for i := 0 to high(players) do
+    with players[i] do
+    begin
+      integers[_P_BAR] := strToBar(playerForm.players[i].settings[13]);
+      integers[_P_BREAK] := strToInt(playerForm.players[i].settings[1]);
+      integers[_P_TIME] := strToInt(playerForm.players[i].settings[0]);
+      integers[_P_SPELL_X] := strToInt(playerForm.players[i].settings[5]);
+      integers[_P_SPELL_Y] := strToInt(playerForm.players[i].settings[4]);
+      booleans[_P_COAL_BAG] := strToBool(playerForm.players[i].settings[9]);
+      strings[_P_SPELL_KEY] := playerForm.players[i].settings[2];
+      strings[_P_BANK_DIR] := playerForm.players[i].settings[3];
+    end;
+
+  statsSetup(534, playerForm.players[0].settings[6], playerForm.players[0].settings[7]);
+  antibanChance := strToInt(playerForm.players[0].settings[8]);
+end;
 
 procedure signature;
 begin
@@ -202,7 +185,7 @@ end;
 
 procedure antiban(which: integer);
 begin
-  if (random(100) + 1 > ANTIBAN_CHANCE) then
+  if (random(100) + 1 > antibanChance) then
     exit;
 
   case which of
@@ -980,15 +963,22 @@ begin
   setScriptProp(sp_WriteTimeStamp, [true]);
   addOnTerminate('terminate');
   setSupressExceptions(false);
-  disableSRLLog := (not SRL_LOG);
-  disableIPScreenshots := (not IP_SCREEN);
-  disableSRLDebug := (not SRL_DEBUG);
   SRL_Events[EVENT_LOGIN] := @onLogin;
   smartShowConsole := false;
+  initPlayerForm();
+  runPlayerForm();
+
+  try
+    disableSRLLog := (not strToBool(playerForm.players[0].settings[10]));
+    disableSRLDebug := (not strToBool(playerForm.players[0].settings[11]));
+    disableIPScreenshots := (not strToBool(playerForm.players[0].settings[12]));
+  except
+  end;
+
+  if (not playerForm.isScriptReady) then
+    exit;
 
   setupSRL();
-  statsSetup(534, STATS_ID, STATS_PASSWORD);
-
   setupScript();
   mainloop();
 end.
