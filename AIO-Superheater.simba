@@ -137,8 +137,8 @@ begin
       integers[_P_BAR] := strToBar(playerForm.players[i].settings[13]);
       integers[_P_BREAK] := strToInt(playerForm.players[i].settings[1]);
       integers[_P_TIME] := strToInt(playerForm.players[i].settings[0]);
-      integers[_P_SPELL_X] := strToInt(playerForm.players[i].settings[5]);
-      integers[_P_SPELL_Y] := strToInt(playerForm.players[i].settings[4]);
+      integers[_P_SPELL_X] := strToInt(playerForm.players[i].settings[4]);
+      integers[_P_SPELL_Y] := strToInt(playerForm.players[i].settings[5]);
       booleans[_P_COAL_BAG] := strToBool(playerForm.players[i].settings[9]);
       strings[_P_SPELL_KEY] := playerForm.players[i].settings[2];
       strings[_P_BANK_DIR] := playerForm.players[i].settings[3];
