@@ -23,7 +23,7 @@ program AIOSuperheater;
 {$i srl-6/lib/misc/srlplayerform.simba}
 
 const
-  SCRIPT_VERSION = '1.8';
+  SCRIPT_VERSION = '1.9';
 
 const
   BAR_BRONZE  = 0;
@@ -46,6 +46,11 @@ type
     profit: integer;
   end;
 
+{$s+}
+type
+  TNaturesLoc = (BANK, BACKPACK);
+{$s-}
+
 // _* means changing won't break script, but still shouldn't change
 const
   _P_BAR      = 0;
@@ -55,6 +60,7 @@ const
   _P_SPELL_Y  = 4;
 
   _P_COAL_BAG = 0;
+  _P_SOUND    = 1;
 
   _P_SPELL_KEY = 0;
   _P_BANK_DIR  = 1;
@@ -72,6 +78,7 @@ const
 const
   __SLOT_NATURE   = 28; // inventory slot holding the nature runes
   __SLOT_COAL_BAG = 27; // inventory slot holding the coal bag
+  __OUTLINE_COAL_BAG = 74; // the number of black outline pixels
   __EXP_SUPERHEAT = 53;
   __MOUSEOVERTEXT_ORE  = ['Ore', 're'];
   __MOUSEOVERTEXT_COAL = ['Coal', 'oal', 'Co'];
@@ -111,16 +118,17 @@ begin
     scriptHelpThread := 'http://villavu.com/forum/showthread.php?t=72633';
     scriptSettingsPath := '';
 
-    editBoxLabels := ['Minutes before breaking', 'Minutes to break for', 'Keybind key', 'Bank direction (N, E, S, W)', 'Spell Point X', 'Spell Point Y', 'Stats ID', 'Stats Password', 'Percent change for antiban'];
-    editBoxDefaults := ['0', '0', '0', 'N', '0', '0', '', '', '0'];
-    checkBoxLabels := ['Use Coal bag', 'Save SRL log', 'Show SRL debug', 'Take screenshot of IP'];
-    checkBoxDefaults := ['True', 'True', 'True', 'True'];
-    comboBoxLabels := ['Bar type'];
-    comboBoxDefaults := ['Steel'];
+    editBoxLabels := ['Minutes before breaking', 'Minutes to break for', 'Keybind key', 'Spell Point X', 'Spell Point Y', 'Stats ID', 'Stats Password', 'Percent chance for antiban'];
+    editBoxDefaults := ['0', '0', '0', '0', '0', '', '', '0'];
+    checkBoxLabels := ['Use Coal bag', 'Save SRL log', 'Show SRL debug', 'Take screenshot of IP', 'Play finishing sound'];
+    checkBoxDefaults := ['True', 'True', 'True', 'True', 'True'];
+    comboBoxLabels := ['Bar type', 'Bank direction'];
+    comboBoxDefaults := ['Steel', 'N'];
 
     // this needs to be done for every element in the comboBoxLabels array
     setLength(comboBoxItems, length(comboBoxLabels));
     comboBoxItems[0] := ['Bronze', 'Iron', 'Silver', 'Steel', 'Gold', 'Mithril', 'Adamant', 'Rune'];
+    comboBoxItems[1] := ['N', 'E', 'S', 'W'];
   end;
 end;
 
@@ -137,15 +145,16 @@ begin
       integers[_P_BAR] := strToBar(playerForm.players[i].settings[13]);
       integers[_P_BREAK] := strToInt(playerForm.players[i].settings[1]);
       integers[_P_TIME] := strToInt(playerForm.players[i].settings[0]);
-      integers[_P_SPELL_X] := strToInt(playerForm.players[i].settings[4]);
-      integers[_P_SPELL_Y] := strToInt(playerForm.players[i].settings[5]);
-      booleans[_P_COAL_BAG] := strToBool(playerForm.players[i].settings[9]);
+      integers[_P_SPELL_X] := strToInt(playerForm.players[i].settings[3]);
+      integers[_P_SPELL_Y] := strToInt(playerForm.players[i].settings[4]);
+      booleans[_P_COAL_BAG] := strToBool(playerForm.players[i].settings[8]);
+      booleans[_P_SOUND] := strToBool(playerForm.players[i].settings[12]);
       strings[_P_SPELL_KEY] := playerForm.players[i].settings[2];
-      strings[_P_BANK_DIR] := playerForm.players[i].settings[3];
+      strings[_P_BANK_DIR] := playerForm.players[i].settings[14];
     end;
 
-  statsSetup(534, playerForm.players[0].settings[6], playerForm.players[0].settings[7]);
-  antibanChance := strToInt(playerForm.players[0].settings[8]);
+  statsSetup(534, playerForm.players[0].settings[5], playerForm.players[0].settings[6]);
+  antibanChance := strToInt(playerForm.players[0].settings[7]);
 end;
 
 procedure signature;
@@ -324,28 +333,46 @@ end;
 
 function getNaturesBank(): integer;
 begin
-  if (not bankScreen.isOpen()) then
-    exit;
-
-  result := getItemAmount(bankscreen.getPackSlotBox(__SLOT_NATURE));
+  if (bankScreen.isOpen()) then
+    result := getItemAmount(bankscreen.getPackSlotBox(__SLOT_NATURE));
 
   if (result <= 0) then
-    players[currentPlayer].strings[_P_FALSE] := 'No Runes';
-
-  writeln('Natures found bank pack: '+toStr(result));
+    if (bankscreen.isItemInPackSlot(__SLOT_NATURE)) then
+    begin
+      writeln('getNaturesBank(): Misread natures, trying again...');
+      mouse(mainscreen.getCenterPoint().rand(200), MOUSE_MOVE);
+      result := getItemAmount(bankscreen.getPackSlotBox(__SLOT_NATURE));
+    end;
 end;
 
 function getNaturesBackpack(): integer;
 begin
-  if (not tabBackpack.open()) then
-    exit;
-
-  result := getItemAmount(tabBackpack.getSlotBox(__SLOT_NATURE));
+  if (tabBackpack.open()) then
+    result := getItemAmount(tabBackpack.getSlotBox(__SLOT_NATURE));
 
   if (result <= 0) then
-    players[currentPlayer].strings[_P_FALSE] := 'No Runes';
+    if (tabBackpack.isItemInSlot(__SLOT_NATURE)) then
+    begin
+      writeln('getNaturesBackpack(): Misread natures, trying again...');
+      mouse(mainscreen.getCenterPoint().rand(200), MOUSE_MOVE);
+      result := getItemAmount(tabBackpack.getSlotBox(__SLOT_NATURE));
+    end;
+end;
 
-  writeln('Natures found backpack: '+toStr(result));
+function getNatures(l: TNaturesLoc): integer;
+begin
+  case l of
+    TNaturesLoc.BANK:
+      result := getNaturesBank();
+
+    TNaturesLoc.BACKPACK:
+      result := getNaturesBackpack();
+
+    else
+      writeln('getNatures: Invalid TNaturesLoc');
+  end;
+
+  writeln('getNatures: Player has '+toStr(result)+' nature runes');
 end;
 
 function getSmithingExp(bar: TBar; casts: integer): integer;
@@ -442,26 +469,14 @@ begin
   setScriptProp(sp_WriteTimeStamp, [false]);
 end;
 
-function waitOnInvTab(time: integer): boolean;
-var
-  t: integer := getSystemTime() + time;
+function isBackpackOpen(): boolean;
 begin
-  while ((getSystemTime() < t) and (not result)) do
-  begin
-    result := tabBackpack.isOpen();
-    wait(50);
-  end;
+  result := tabBackpack.isOpen();
 end;
 
-function waitOnMagicTab(time: integer): boolean;
-var
-  t: integer := getSystemTime() + time;
+function isMagicTabOpen(): boolean;
 begin
-  while ((getSystemTime() < t) and (not result)) do
-  begin
-    result := gameTabs.isTabActive(TAB_MAGIC);
-    wait(50);
-  end;
+  result := gameTabs.isTabActive(TAB_MAGIC);
 end;
 
 function waitPackCountChanged(oldCount: integer; time: integer): boolean;
@@ -483,9 +498,9 @@ begin
   result := true;
 
   if (inBank) then
-    nats := getNaturesBank()
+    nats := getNatures(TNaturesLoc.BANK)
   else
-    nats := getNaturesBackpack();
+    nats := getNatures(TNaturesLoc.BACKPACK);
 
   if (nats <= 0) then
     nats := 0;
@@ -521,7 +536,8 @@ function withdrawOres(bar: TBar): boolean;
 var
   nats, t, amt: integer;
 begin
-  nats := getNaturesBank();
+  nats := getNatures(TNaturesLoc.BANK);
+
   if (nats <= 0) then
     exit;
 
@@ -657,10 +673,22 @@ begin
 
     if (withdrawOres(bar)) then
     begin
-      result := true;
       progressReport();
+
+      if (players[currentPlayer].booleans[_P_COAL_BAG]) then
+      begin
+        result := (countColor(ITEM_OUTLINE_BLACK, bankscreen.getPackSlotBox(__SLOT_COAL_BAG)) = __OUTLINE_COAL_BAG)
+
+        if (not result) then
+        begin
+          writeln('bank: Failed to find Coal bag');
+          players[currentPlayer].strings[_P_FALSE] := 'No Coal bag';
+        end;
+
+      end else
+        result := true;
+
       bankscreen.close();
-      tabBackpack.waitWhileLocked();
     end else
       writeln('bank: Failed to withdraw ores');
 
@@ -698,7 +726,7 @@ begin
   if (not cast()) then
     exit;
 
-  if (waitOnInvTab(2000)) then
+  if (waitFunc(@isBackpackOpen, 50, 2000)) then
   begin
     getMousePos(x, y);
     mouseSlot := tabBackpack.pointToSlot(point(x, y));
@@ -716,7 +744,7 @@ begin
   end;
 
   if (successful) then
-    result := waitOnMagicTab(2000);
+    result := waitFunc(@isMagicTabOpen, 50, 2000);
 end;
 
 function castKeyBind(barSlot: integer; bar: TBar): boolean;
@@ -728,6 +756,7 @@ begin
     exit();
 
   tabBackpack.mouseSlot(bar.amtPrimary, MOUSE_MOVE);
+  tabBackpack.waitWhileLocked();
 
   repeat
     typeSend(players[currentPlayer].strings[_P_SPELL_KEY], false);
@@ -774,7 +803,7 @@ begin
         break;
       end;
 
-      if (getNaturesBackpack() <= 0) then // if run out of runes
+      if (getNatures(TNaturesLoc.BACKPACK) <= 0) then // if run out of runes
         exit;
 
       if (t >= 3) then // something went wrong, exit
@@ -828,7 +857,7 @@ begin
     // in case a different tab is accidentially opened
     while ((players[currentPlayer].integers[_P_NATURES_START] <= 0) and (t < 3)) do
     begin
-      players[currentPlayer].integers[_P_NATURES_START] := getNaturesBackpack();
+      players[currentPlayer].integers[_P_NATURES_START] := getNatures(TNaturesLoc.BACKPACK);
       wait(50 + random(50));
       t := t + 1;
     end;
@@ -875,6 +904,10 @@ begin
 
     players[currentPlayer].logout();
     writeln('Player '+toStr(currentPlayer)+': '+why);
+
+    if (players[currentPlayer].booleans[_P_SOUND]) then
+      playSound(scriptPath + 'finished.wav');
+
     terminateScript();
   end else
     players.next(false);
@@ -914,6 +947,9 @@ begin
 
       if (not bank(_bars[currentPlayer])) then
       begin
+        if (not isLoggedIn()) then // for connection loss
+          break;
+
         writeln('Failed to bank, possibly lag; waiting about 10 seconds...');
         wait(randomRange(8000, 12000));
 
@@ -926,6 +962,9 @@ begin
 
       if (not castLoad(_bars[currentPlayer])) then
       begin
+        if (not isLoggedIn()) then // for connection loss
+          break;
+
         writeln('Failed to cast a full load, possibly lag; waiting about 10 seconds...');
         wait(randomRange(8000, 12000));
 
@@ -937,7 +976,7 @@ begin
           continue;
       end;
 
-      statsCommit();
+      //statsCommit();
 
     until(not players[currentPlayer].isActive);
 
@@ -969,9 +1008,9 @@ begin
   runPlayerForm();
 
   try
-    disableSRLLog := (not strToBool(playerForm.players[0].settings[10]));
-    disableSRLDebug := (not strToBool(playerForm.players[0].settings[11]));
-    disableIPScreenshots := (not strToBool(playerForm.players[0].settings[12]));
+    disableSRLLog := (not strToBool(playerForm.players[0].settings[9]));
+    disableSRLDebug := (not strToBool(playerForm.players[0].settings[10]));
+    disableIPScreenshots := (not strToBool(playerForm.players[0].settings[11]));
   except
   end;
 
