@@ -23,7 +23,7 @@ program AIOSuperheater;
 {$i srl-6/lib/misc/srlplayerform.simba}
 
 const
-  SCRIPT_VERSION = '2.0';
+  SCRIPT_VERSION = '2.1';
 
 const
   BAR_BRONZE  = 0;
@@ -653,6 +653,8 @@ begin
 end;
 
 function bank(bar: TBar): boolean;
+var
+  c: integer;
 begin
   if (not isLoggedIn()) then
     exit;
@@ -663,35 +665,42 @@ begin
   if (openBank()) then
   begin
     wait(200 + random(200));
-    depositJunk(bar);
 
     if (not setCasts(true)) then // if player is finished casting
       exit;
 
-    if (not fillCoalBag(bar)) then // in case the bag is already full
+    repeat // loop as a failsafe
       depositJunk(bar);
 
-    if (withdrawOres(bar)) then
-    begin
-      progressReport();
+      if (not fillCoalBag(bar)) then // in case the bag is already full
+        depositJunk(bar);
 
-      if (players[currentPlayer].booleans[_P_COAL_BAG]) then
+      if (withdrawOres(bar)) then
       begin
-        result := (countColor(ITEM_OUTLINE_BLACK, bankscreen.getPackSlotBox(__SLOT_COAL_BAG)) = __OUTLINE_COAL_BAG)
+        progressReport();
 
-        if (not result) then
+        if (players[currentPlayer].booleans[_P_COAL_BAG]) then
         begin
-          writeln('bank: Failed to find Coal bag');
-          players[currentPlayer].strings[_P_FALSE] := 'No Coal bag';
-        end;
+          result := (countColor(ITEM_OUTLINE_BLACK, bankscreen.getPackSlotBox(__SLOT_COAL_BAG)) = __OUTLINE_COAL_BAG)
 
+          if (not result) then
+          begin
+            writeln('bank: Failed to find Coal bag');
+            players[currentPlayer].strings[_P_FALSE] := 'No Coal bag';
+          end;
+
+        end else
+          result := true;
       end else
-        result := true;
+        writeln('bank: Failed to withdraw ores '+toStr(c)+' times');
 
-      bankscreen.close();
-    end else
-      writeln('bank: Failed to withdraw ores');
+      if (not result) then
+        mouseOffClient(OFF_CLIENT_RANDOM);
 
+      inc(c);
+    until(result or (not isLoggedIn()) or (c >= 3));
+
+    bankscreen.close();
   end else
     writeln('bank: Failed to open');
 end;
