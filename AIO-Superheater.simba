@@ -23,7 +23,7 @@ program AIOSuperheater;
 {$i srl-6/lib/misc/srlplayerform.simba}
 
 const
-  SCRIPT_VERSION = '2.1';
+  SCRIPT_VERSION = '2.2';
 
 const
   BAR_BRONZE  = 0;
@@ -79,6 +79,7 @@ const
   __SLOT_NATURE   = 28; // inventory slot holding the nature runes
   __SLOT_COAL_BAG = 27; // inventory slot holding the coal bag
   __OUTLINE_COAL_BAG = 74; // the number of black outline pixels
+  __SPECIAL_MOUSE_SLOTS = 26; // slots >= this slot need the mouse to move in the top half so mouseover text doesn't cover other slots
   __EXP_SUPERHEAT = 53;
   __MOUSEOVERTEXT_ORE  = ['Ore', 're'];
   __MOUSEOVERTEXT_COAL = ['Coal', 'oal', 'Co'];
@@ -758,13 +759,21 @@ end;
 
 function castKeyBind(barSlot: integer; bar: TBar): boolean;
 var
+  b, bSlot: TBox;
   oldOutline, c: integer;
   t := (getSystemTime() + 3000);
 begin
   if (not tabBackpack.open()) then
     exit();
 
-  tabBackpack.mouseSlot(bar.amtPrimary, MOUSE_MOVE);
+  if (bar.amtPrimary >= __SPECIAL_MOUSE_SLOTS) then
+  begin
+    b := tabBackpack.getSlotBox(bar.amtPrimary);
+    bSlot := intToBox(b.x1, b.y1, b.x2, b.y1 + round((b.y2 - b.y1) / 2)); // move to only the top half of the slot so mouseovertext doesn't cover other slots
+    mouseBox(bSlot, MOUSE_MOVE);
+  end else
+    tabBackpack.mouseSlot(bar.amtPrimary, MOUSE_MOVE);
+
   tabBackpack.waitWhileLocked();
 
   repeat
