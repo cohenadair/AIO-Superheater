@@ -12,7 +12,7 @@
 
 {==============================================================================\
 |                              Setup Instructions                              |
-|==============================================================================]
+|==============================================================================|
 |                                                                              |
 |       1. See thread: http://villavu.com/forum/showthread.php?t=72633         |
  \_____________________________________________________________________________}
@@ -23,7 +23,7 @@ program AIOSuperheater;
 {$i srl-6/lib/misc/srlplayerform.simba}
 
 const
-  SCRIPT_VERSION = '2.2';
+  SCRIPT_VERSION = '2.3';
 
 const
   BAR_BRONZE  = 0;
@@ -78,7 +78,6 @@ const
 const
   __SLOT_NATURE   = 28; // inventory slot holding the nature runes
   __SLOT_COAL_BAG = 27; // inventory slot holding the coal bag
-  __OUTLINE_COAL_BAG = 74; // the number of black outline pixels
   __SPECIAL_MOUSE_SLOTS = 26; // slots >= this slot need the mouse to move in the top half so mouseover text doesn't cover other slots
   __EXP_SUPERHEAT = 53;
   __MOUSEOVERTEXT_ORE  = ['Ore', 're'];
@@ -530,6 +529,7 @@ var
   endSlot: integer;
 begin
   endSlot := (bar.amtPrimary + boolToInt(players[currentPlayer].booleans[_P_COAL_BAG]));
+  writeln(endSlot);
   result := bankscreen.deposit([1..endSlot]);
 end;
 
@@ -676,27 +676,14 @@ begin
       if (not fillCoalBag(bar)) then // in case the bag is already full
         depositJunk(bar);
 
-      if (withdrawOres(bar)) then
-      begin
-        progressReport();
-
-        if (players[currentPlayer].booleans[_P_COAL_BAG]) then
-        begin
-          result := (countColor(ITEM_OUTLINE_BLACK, bankscreen.getPackSlotBox(__SLOT_COAL_BAG)) = __OUTLINE_COAL_BAG)
-
-          if (not result) then
-          begin
-            writeln('bank: Failed to find Coal bag');
-            players[currentPlayer].strings[_P_FALSE] := 'No Coal bag';
-          end;
-
-        end else
-          result := true;
-      end else
-        writeln('bank: Failed to withdraw ores '+toStr(c)+' times');
+      result := withdrawOres(bar);
 
       if (not result) then
+      begin
+        writeln('bank: Failed to withdraw ores '+toStr(c)+' times');
         mouseOffClient(OFF_CLIENT_RANDOM);
+      end else
+        progressReport();
 
       inc(c);
     until(result or (not isLoggedIn()) or (c >= 3));
