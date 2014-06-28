@@ -54,15 +54,19 @@ type
 
 // _* means changing won't break script, but still shouldn't change
 const
+  // integers
   _P_BAR      = 0;
   _P_BREAK    = 1;
   _P_TIME     = 2;
   _P_SPELL_X  = 3;
   _P_SPELL_Y  = 4;
+  _P_PRESET   = 5;
 
+  // booleans
   _P_COAL_BAG = 0;
   _P_SOUND    = 1;
 
+  // strings
   _P_SPELL_KEY = 0;
   _P_BANK_DIR  = 1;
 
@@ -123,13 +127,14 @@ begin
     editBoxDefaults := ['0', '0', '0', '0', '0', '', '', '0'];
     checkBoxLabels := ['Use Coal bag', 'Save SRL log', 'Show SRL debug', 'Take screenshot of IP', 'Play finishing sound'];
     checkBoxDefaults := ['True', 'True', 'True', 'True', 'True'];
-    comboBoxLabels := ['Bar type', 'Bank direction'];
-    comboBoxDefaults := ['Steel', 'N'];
+    comboBoxLabels := ['Bar type', 'Bank direction', 'Bank Preset'];
+    comboBoxDefaults := ['Steel', 'N', '1'];
 
     // this needs to be done for every element in the comboBoxLabels array
     setLength(comboBoxItems, length(comboBoxLabels));
     comboBoxItems[0] := ['Bronze', 'Iron', 'Silver', 'Steel', 'Gold', 'Mithril', 'Adamant', 'Rune'];
     comboBoxItems[1] := ['N', 'E', 'S', 'W'];
+    comboBoxItems[2] := ['1', '2', 'None'];
   end;
 end;
 
@@ -152,6 +157,12 @@ begin
       booleans[_P_SOUND] := strToBool(playerForm.players[i].settings[12]);
       strings[_P_SPELL_KEY] := playerForm.players[i].settings[2];
       strings[_P_BANK_DIR] := playerForm.players[i].settings[14];
+
+      case playerForm.players[i].settings[15] of
+        '1': integers[_P_PRESET] := BANK_BUTTON_PRESET_1;
+        '2': integers[_P_PRESET] := BANK_BUTTON_PRESET_2;
+        'None': integers[_P_PRESET] := -1;
+      end;
     end;
 
   statsSetup(534, playerForm.players[0].settings[5], playerForm.players[0].settings[6]);
@@ -226,6 +237,22 @@ begin
     result := 1
   else
     result := 0;
+end;
+
+function usingClickSpell(): boolean;
+begin
+  result := (players[currentPlayer].strings[_P_SPELL_KEY] = '');
+end;
+
+function usingCoalBag(): boolean;
+begin
+  result := players[currentPlayer].booleans[_P_COAL_BAG] and
+            (players[currentPlayer].integers[_P_PRESET] = -1);
+end;
+
+function usingPreset(): boolean;
+begin
+  result := (players[currentPlayer].integers[_P_PRESET] <> -1);
 end;
 
 function getBar(bar: integer): TBar;
@@ -320,7 +347,7 @@ begin
       begin
         name := 'Rune Bar';
         statsName := 'Runite Bars Melted';
-        amtPrimary   := (3 + (boolToInt(players[currentPlayer].booleans[_P_COAL_BAG])) * 2);;
+        amtPrimary   := (3 + (boolToInt(players[currentPlayer].booleans[_P_COAL_BAG])) * 2);
         hasSecondary := true;
         expSmithing  := 50.0;
         oreUptext    := ['Runite', 'unite'];
@@ -422,10 +449,10 @@ begin
   end;
 end;
 
+procedure progressReport();
 const
   __PADR = 44;
   __TOK = ',';
-procedure progressReport();
 var
   i, _expM, _expS, _worked, profit: integer;
   _bar: TBar;
@@ -500,6 +527,7 @@ begin
 end;
 
 // Returns false if the player is finished casting (i.e. out of runes)
+// Not used in the Preset method
 function setCasts(inBank: boolean): boolean;
 var
   nats, prevCasts: integer;
@@ -533,6 +561,7 @@ begin
   end;
 end;
 
+// Not used in the Preset method
 function depositJunk(bar: TBar): boolean;
 var
   endSlot: integer;
@@ -542,6 +571,7 @@ begin
   result := bankscreen.deposit([1..endSlot]);
 end;
 
+// Not used in the Preset method
 function withdrawOres(bar: TBar): boolean;
 var
   nats, t, amt: integer;
@@ -585,6 +615,7 @@ begin
   end;
 end;
 
+// Not used in the Preset method
 function fillCoalBag(bar: TBar): boolean;
 var
   oldCount: integer;
@@ -662,8 +693,14 @@ begin
   until(result or (c >= 3));
 end;
 
+function isBankClosed(): boolean;
+begin
+  result := (not bankscreen.isOpen());
+end;
+
 function bank(bar: TBar): boolean;
 var
+  b, bSlot: TBox;
   c: integer;
 begin
   if (not isLoggedIn()) then
@@ -676,20 +713,27 @@ begin
   begin
     wait(200 + random(200));
 
-    if (not setCasts(true)) then // if player is finished casting
-      exit;
+    if (not usingPreset()) then
+      if (not setCasts(true)) then // if player is finished casting
+        exit;
 
     repeat // loop as a failsafe
-      depositJunk(bar);
-
-      if (not fillCoalBag(bar)) then // in case the bag is already full
+      if (not usingPreset()) then
+      begin
         depositJunk(bar);
 
-      result := withdrawOres(bar);
+        if (not fillCoalBag(bar)) then // in case the bag is already full
+          depositJunk(bar);
+      end;
+
+      if (usingPreset()) then
+        result := bankscreen.clickButton(players[currentPlayer].integers[_P_PRESET])
+      else
+        result := withdrawOres(bar);
 
       if (not result) then
       begin
-        writeln('bank: Failed to withdraw ores '+toStr(c)+' times');
+        writeln('bank: Failed to withdraw materials '+toStr(c)+' times');
         mouseOffClient(OFF_CLIENT_RANDOM);
       end else
         progressReport();
@@ -697,11 +741,12 @@ begin
       inc(c);
     until(result or (not isLoggedIn()) or (c >= 3));
 
-    bankscreen.close();
   end else
     writeln('bank: Failed to open');
 end;
 
+// Old fashioned cast method (clicks spell in magic tab)
+// Only used for the Click Spell method
 function cast(): boolean;
 var
   p: TPoint;
@@ -721,6 +766,7 @@ begin
     end;
 end;
 
+// Used only for the Click Spell method
 function castSlot(slot: integer; bar: TBar): boolean;
 var
   x, y, mouseSlot: integer;
@@ -753,24 +799,14 @@ begin
     result := waitFunc(@isMagicTabOpen, 50, 2000);
 end;
 
+// Not used for the Click Spell method
 function castKeyBind(barSlot: integer; bar: TBar): boolean;
 var
-  b, bSlot: TBox;
   oldOutline, c: integer;
   t := (getSystemTime() + 3000);
 begin
   if (not tabBackpack.open()) then
     exit();
-
-  if (bar.amtPrimary >= __SPECIAL_MOUSE_SLOTS) then
-  begin
-    b := tabBackpack.getSlotBox(bar.amtPrimary);
-    bSlot := intToBox(b.x1, b.y1, b.x2, b.y1 + round((b.y2 - b.y1) / 2)); // move to only the top half of the slot so mouseovertext doesn't cover other slots
-    mouseBox(bSlot, MOUSE_MOVE);
-  end else
-    tabBackpack.mouseSlot(bar.amtPrimary, MOUSE_MOVE);
-
-  tabBackpack.waitWhileLocked();
 
   repeat
     typeSend(players[currentPlayer].strings[_P_SPELL_KEY], false);
@@ -789,26 +825,67 @@ begin
     end;
 
     c := c + 1;
-
   until(result or (c >= 5));
 
   if (not result) then
     writeln('castKeyBind: Failed to cast via key bind');
 end;
 
+// Gets ready for next load while the backpack is loading
+function castPrepare(bar: TBar): boolean;
+  procedure mousePrimarySlot(bar: TBar);
+  var
+    b, bSlot: TBox;
+  begin
+    if (bar.amtPrimary >= __SPECIAL_MOUSE_SLOTS) then
+    begin
+      b := tabBackpack.getSlotBox(bar.amtPrimary);
+      bSlot := intToBox(b.x1, b.y1, b.x2, b.y1 + round((b.y2 - b.y1) / 2)); // move to only the top half of the slot so mouseovertext doesn't cover other slots
+      mouseBox(bSlot, MOUSE_MOVE);
+    end else
+      tabBackpack.mouseSlot(bar.amtPrimary, MOUSE_MOVE);
+  end;
+begin
+  result := true;
+
+  if (usingPreset()) then
+    waitFunc(@isBankClosed, 50, 5000)
+  else begin
+    bankscreen.close();
+    mousePrimarySlot(bar);
+  end;
+
+  tabBackpack.waitWhileLocked();
+  wait(100 + random(100));
+
+  // if using preset and inventory isn't full, we're done
+  if (usingPreset()) then
+    if (not tabBackpack.isFull()) then
+    begin
+      writeln('Backpack not full after clicking preset button; out of items');
+      players[currentPlayer].strings[_P_FALSE] := 'Out of items';
+      result := false;
+    end else
+      mousePrimarySlot(bar);
+end;
+
+// Main casting function; used for all methods
 function castLoad(bar: TBar): boolean;
 var
   i, c, t: integer;
   didCast: boolean;
 begin
+  if (not castPrepare(bar)) then
+    exit(false);
+
   for i := 1 to (bar.amtPrimary) do
     repeat
       inc(t);
 
-      if (players[currentPlayer].strings[_P_SPELL_KEY] <> '') then
-        didCast := castKeyBind(i, bar)
+      if (usingClickSpell()) then
+        didCast := castSlot(i, bar)
       else
-        didCast := castSlot(i, bar);
+        didCast := castKeyBind(i, bar);
 
       if (didCast) then
       begin
@@ -817,8 +894,9 @@ begin
         break;
       end;
 
-      if (getNatures(TNaturesLoc.BACKPACK) <= 0) then // if run out of runes
-        exit;
+      if (not usingPreset()) then
+        if (getNatures(TNaturesLoc.BACKPACK) <= 0) then // if run out of runes
+          exit;
 
       if (t >= 3) then // something went wrong, exit
         exit;
@@ -826,6 +904,10 @@ begin
     until(not isLoggedIn());
 
   result := (c = (bar.amtPrimary));
+
+  if (result) then
+    if (usingPreset()) then
+      inc(players[currentPlayer].integers[_P_CASTS], bar.amtPrimary);
 end;
 
 procedure takeBreak();
@@ -868,16 +950,20 @@ begin
     result := true;
     findNormalRandoms();
 
-    // in case a different tab is accidentially opened
-    while ((players[currentPlayer].integers[_P_NATURES_START] <= 0) and (t < 3)) do
+    if (not usingPreset()) then
     begin
-      players[currentPlayer].integers[_P_NATURES_START] := getNatures(TNaturesLoc.BACKPACK);
-      wait(50 + random(50));
-      t := t + 1;
-    end;
+      // in case a different tab is accidentially opened
+      while ((players[currentPlayer].integers[_P_NATURES_START] <= 0) and (t < 3)) do
+      begin
+        players[currentPlayer].integers[_P_NATURES_START] := getNatures(TNaturesLoc.BACKPACK);
+        wait(50 + random(50));
+        t := t + 1;
+      end;
 
-    writeln('Player '+toStr(currentPlayer)+' start Nature runes: '+
-      toStr(players[currentPlayer].integers[_P_NATURES_START]));
+      writeln('Player '+toStr(currentPlayer)+' start Nature runes: '+
+        toStr(players[currentPlayer].integers[_P_NATURES_START]));
+    end else
+      tabBackpack.open();
   end;
 end;
 
@@ -899,6 +985,8 @@ begin
     _bars[i] := getBar(players[i].integers[_P_BAR]);
     _bars[i].profit := getProfit(_bars[i]);
   end;
+
+  //debugProfits(); // strictly for debugging
 end;
 
 procedure next(why: string = '');
@@ -914,7 +1002,9 @@ begin
   begin
     bankscreen.close();
     tabBackpack.waitWhileLocked();
-    setCasts(false);
+
+    if (not usingPreset()) then
+      setCasts(false);
 
     players[currentPlayer].logout();
     writeln('Player '+toStr(currentPlayer)+': '+why);
@@ -950,7 +1040,7 @@ begin
       // break or switch players if it's time
       with players[currentPlayer] do
         if (integers[_P_TIME] > 0) then
-          if (tmp.getTime() >= (integers[_P_TIME] * 60000 {+ randomMinutes(5)})) then
+          if (tmp.getTime() >= (integers[_P_TIME] * 60000 + randomMinutes(5))) then
           begin
             wait(100 + random(50));
             takeBreak();
@@ -963,6 +1053,12 @@ begin
       begin
         if (not isLoggedIn()) then // for connection loss
           break;
+
+        if (players[currentPlayer].strings[_P_FALSE] <> '') then
+        begin
+          next();
+          break;
+        end;
 
         writeln('Failed to bank, possibly lag; waiting about 10 seconds...');
         wait(randomRange(8000, 12000));
@@ -979,15 +1075,24 @@ begin
         if (not isLoggedIn()) then // for connection loss
           break;
 
-        writeln('Failed to cast a full load, possibly lag; waiting about 10 seconds...');
-        wait(randomRange(8000, 12000));
-
-        if (not setCasts(false)) then // if finished
+        if (players[currentPlayer].strings[_P_FALSE] <> '') then
         begin
           next();
           break;
-        end else
-          continue;
+        end;
+
+        writeln('Failed to cast a full load, possibly lag; waiting about 10 seconds...');
+        wait(randomRange(8000, 12000));
+
+        if (not usingPreset()) then
+          if (not setCasts(false)) then // if finished
+          begin
+            next();
+            break;
+          end else
+            continue;
+
+        next('Failed to cast');
       end;
 
       //statsCommit();
