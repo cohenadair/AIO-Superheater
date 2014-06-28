@@ -23,17 +23,18 @@ program AIOSuperheater;
 {$i srl-6/lib/misc/srlplayerform.simba}
 
 const
-  SCRIPT_VERSION = '2.3';
+  SCRIPT_VERSION = '2.4';
 
 const
-  BAR_BRONZE  = 0;
-  BAR_IRON    = 1;
-  BAR_SILVER  = 2;
-  BAR_STEEL   = 3;
-  BAR_GOLD    = 4;
-  BAR_MITHRIL = 5;
-  BAR_ADAMANT = 6;
-  BAR_RUNE    = 7;
+  BAR_COUNT   = 8;
+    BAR_BRONZE  = 0;
+    BAR_IRON    = 1;
+    BAR_SILVER  = 2;
+    BAR_STEEL   = 3;
+    BAR_GOLD    = 4;
+    BAR_MITHRIL = 5;
+    BAR_ADAMANT = 6;
+    BAR_RUNE    = 7;
 
 type
   TBar = record
@@ -392,11 +393,19 @@ begin
   p := getPage('http://runescape.wikia.com/wiki/Calculator:Magic/Superheat');
 
   barString := between('<a href="/wiki/' + bar.webString + '"', '</tr>', p);
-  barProfit := between('>', '<', between('e="c', '/s', barString));
+  barProfit := between('&#160;', '<', barString);
   barProfit := replace(barProfit, ',', '', []);
 
   result := strToIntDef(barProfit, -1);
   writeln(bar.name+' Profit: '+toStr(result));
+end;
+
+procedure debugProfits();
+var
+  i: integer;
+begin
+  for i := 0 to (BAR_COUNT - 1) do
+    getProfit(getBar(i));
 end;
 
 function perHour(amt, time: integer): integer;
