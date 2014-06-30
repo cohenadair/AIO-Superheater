@@ -198,9 +198,7 @@ procedure findNormalRandoms();
 var
   p: TPoint;
 begin
-  if (findSpinTicket(p)) then
-    mouse(p, MOUSE_LEFT);
-
+  claimTicket();
   closeAdWindow();
 end;
 
@@ -864,7 +862,7 @@ begin
     if (not tabBackpack.isFull()) then
     begin
       writeln('Backpack not full after clicking preset button; out of items');
-      players[currentPlayer].strings[_P_FALSE] := 'Finished (no items)';
+      players[currentPlayer].strings[_P_FALSE] := 'Finished - no items';
       result := false;
     end else
       mousePrimarySlot(bar);
