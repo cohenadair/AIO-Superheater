@@ -715,6 +715,8 @@ begin
         exit;
 
     repeat // loop as a failsafe
+      findNormalRandoms();
+
       if (not usingPreset()) then
       begin
         depositJunk(bar);
