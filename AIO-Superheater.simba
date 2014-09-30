@@ -23,7 +23,7 @@ program AIOSuperheater;
 {$i srl-6/lib/misc/srlplayerform.simba}
 
 const
-  SCRIPT_VERSION = '2.4';
+  SCRIPT_VERSION = '2.5';
 
 const
   BAR_COUNT   = 8;
@@ -125,10 +125,34 @@ begin
 
     editBoxLabels := ['Minutes before breaking', 'Minutes to break for', 'Keybind key', 'Spell Point X', 'Spell Point Y', 'Stats ID', 'Stats Password', 'Percent chance for antiban'];
     editBoxDefaults := ['0', '0', '0', '0', '0', '', '', '0'];
+    editBoxHints := [
+      'Minutes to run before breaking. Leave at 0 to not break.',
+      'Minutes to break for. Leave at 0 if you''re not breaking.',
+      'The key Superheat item is bound to. Set to nothing (blank) if you aren''t using the keybind feature.',
+      'The x-coordinate of where to click the Superheat item spell. Leave at 0 if you''re using the keybind feature.',
+      'The y-coordinate of where to click the Superheat item spell. Leave at 0 if you''re using the keybind feature.',
+      'Your stats login ID. Leave blank if you don''t know or don''t have a stats account.',
+      'Your stats login passworld. Leave blank if you don''t know or don''t have a stats account.',
+      'The chance of performing some antiban while the script is running. I recommend a maximum of 10%.'
+    ];
+
     checkBoxLabels := ['Use Coal bag', 'Save SRL log', 'Show SRL debug', 'Take screenshot of IP', 'Play finishing sound'];
     checkBoxDefaults := ['True', 'True', 'True', 'True', 'True'];
+    checkBoxHints := [
+      'Leave checked if you''re using a Coal bag.',
+      'Leave checked if you want to save SRL''s debug to a log file.',
+      'Leave checked if you want to show SRL''s debug in Simba''s debug box.',
+      'Leave checked if you want to take a screenshot of you last logged in IP address.',
+      'Leave checked if you want a sound to be played when your player has finished (either successfully or on error).'
+    ];
+
     comboBoxLabels := ['Bar type', 'Bank direction', 'Bank Preset'];
     comboBoxDefaults := ['Steel', 'N', '1'];
+    comboBoxHints := [
+      'Select the type of bar you want to superheat from the drop down menu.',
+      'The tile the bank booth, chest, or counter is on relative to the player. For example, in Varrock East Bank, the booth is S (South) relative to the player.',
+      'The preset bank button to use. Set to "None" if not using the buttons. If this is set, it will override the Coal bag setting.'
+    ];
 
     // this needs to be done for every element in the comboBoxLabels array
     setLength(comboBoxItems, length(comboBoxLabels));
@@ -142,7 +166,7 @@ procedure declarePlayers();
 var
   i: integer;
 begin
-  players.setup(playerForm.playerNames, playerForm.playerFile);
+  players.setup(playerForm.players);
   currentPlayer := 0;
 
   for i := 0 to high(players) do
